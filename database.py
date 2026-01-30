@@ -1,6 +1,7 @@
 import streamlit as st
 from supabase import create_client, Client
 from datetime import datetime
+import hashlib  # --- YENİ: Şifreleme için gerekli kütüphane
 
 
 # --- 1. BAĞLANTI YÖNETİMİ ---
@@ -21,9 +22,43 @@ def get_supabase() -> Client:
     return None
 
 
-# --- 2. KULLANICI & SESSION İŞLEMLERİ (YENİLENMİŞ) ---
+# --- 2. GÜVENLİK VE HASH İŞLEMLERİ (YENİ EKLENDİ) ---
+def make_hashes(password):
+    """Şifreyi SHA-256 ile geri döndürülemez bir koda (hash) çevirir."""
+    return hashlib.sha256(str.encode(password)).hexdigest()
+
+
+def check_hashes(password, hashed_text):
+    """Girilmiş şifreyi hashleyip veritabanındaki kodla karşılaştırır."""
+    if make_hashes(password) == hashed_text:
+        return True
+    return False
+
+
+def verify_user_login(username, password):
+    """
+    Kullanıcı adı ve şifreyi doğrular.
+    Başarılıysa kullanıcı verisini döner, başarısızsa None döner.
+    """
+    user = get_user_data(username)
+
+    if user:
+        stored_password_hash = user.get("password")
+
+        # Eğer veritabanında şifre sütunu boşsa (sadece Google ile girenler için)
+        if not stored_password_hash:
+            return None
+
+        # Şifre kontrolü
+        if check_hashes(password, stored_password_hash):
+            return user
+
+    return None
+
+
+# --- 3. KULLANICI & SESSION İŞLEMLERİ ---
 def get_user_data(username):
-    """Kullanıcı adından tüm bilgileri (session_id, role, id vb.) çeker."""
+    """Kullanıcı adından tüm bilgileri (session_id, role, id, password vb.) çeker."""
     supabase = get_supabase()
     try:
         # Tek sorguda her şeyi alalım
@@ -46,7 +81,7 @@ def update_user_session_id(username, new_session_id):
         return False
 
 
-# --- 3. ANALİZ KAYIT İŞLEMLERİ ---
+# --- 4. ANALİZ KAYIT İŞLEMLERİ ---
 def save_analysis_to_history(user_id, lat, lon, rakim, egim, baki, kw, kwh, roi):
     supabase = get_supabase()
     data = {
@@ -69,7 +104,7 @@ def save_analysis_to_history(user_id, lat, lon, rakim, egim, baki, kw, kwh, roi)
         return False
 
 
-# --- 4. ŞEBEKE VERİLERİ ---
+# --- 5. ŞEBEKE VERİLERİ ---
 def get_substation_data(substation_name):
     supabase = get_supabase()
     try:

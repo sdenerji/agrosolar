@@ -1,6 +1,17 @@
 import streamlit as st
 import time
 import sys
+import hashlib
+
+def make_hashes(password):
+    """Şifreyi SHA-256 ile geri döndürülemez bir koda çevirir."""
+    return hashlib.sha256(str.encode(password)).hexdigest()
+
+def check_hashes(password, hashed_text):
+    """Girilmiş şifre ile veritabanındaki kodu karşılaştırır."""
+    if make_hashes(password) == hashed_text:
+        return True
+    return False
 
 # --- GÜNCELLEME: Yeni Session Yöneticisi Entegrasyonu ---
 try:
