@@ -51,7 +51,8 @@ def sign_up_user(username, email, password):
         # 2. Supabase Auth ile Kullanıcı Oluştur (UUID Almak İçin)
         auth_response = supabase.auth.sign_up({
             "email": email,
-            "password": password
+            "password": password,
+            "options": {"data": {"username": username}}  # İsterseniz ekstra veri de ekleyebilirsiniz
         })
 
         # 3. Auth başarılıysa, dönen ID ile Tabloya yaz
