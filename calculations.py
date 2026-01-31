@@ -108,7 +108,7 @@ def calculate_slope_aspect(lat, lon):
 
 # --- 3. ŞEBEKE VERİ İŞLEME (DİNAMİK DB ENTEGRASYONLU) ---
 # GÖRSEL KOMUTLAR YOK, SADECE SAF VERİ İŞLEME
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner="Ulusal Şebeke Verileri Ayıklanıyor...")
 def parse_grid_data(kmz_path):
     parsed_elements = []
 

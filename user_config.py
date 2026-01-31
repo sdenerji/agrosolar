@@ -24,8 +24,6 @@ ROLE_PERMISSIONS = {
     },
     "Ultra": {
         "label": "Tier 3: Enterprise",
-        # DÜZENLEME: "Ulusal İletim Şebekesi" buradan kaldırıldı.
-        # Artık bir altlık değil, her haritanın üstüne açılabilen bir katman oldu.
         "map_layers": ["Sokak (OSM)", "Uydu (Esri)", "Topoğrafik (Esri)"],
         "max_analysis_per_day": 9999,  # Sınırsız
         "features": [

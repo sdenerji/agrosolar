@@ -2,6 +2,7 @@ import os
 import streamlit as st
 from streamlit_folium import st_folium
 import folium
+from folium.plugins import MarkerCluster  # --- PERFORMANS İÇİN ---
 import matplotlib.pyplot as plt
 import matplotlib
 from datetime import datetime
@@ -9,11 +10,9 @@ import requests
 
 # --- ÖZEL MODÜLLER ---
 from database import get_supabase
-# ui_utils'den görsel şablonları çağırıyoruz
 from ui_utils import (hide_header_footer, render_google_login, render_analysis_box,
                       create_substation_popup, get_grid_color)
 from auth_ui import show_auth_pages
-# calculations'dan veri işleme mantığını çağırıyoruz
 from calculations import (calculate_slope_aspect, get_solar_potential, analyze_suitability,
                           get_projection_data, generate_earnings_graph, generate_horizon_plot,
                           get_horizon_analysis, get_shading_metrics, evaluate_shading_suitability,
@@ -21,8 +20,6 @@ from calculations import (calculate_slope_aspect, get_solar_potential, analyze_s
 from reports import generate_full_report
 from profile_page import show_profile_page
 from user_config import ROLE_PERMISSIONS, has_permission
-
-# Session kontrolü
 from session_manager import handle_session_limit
 
 # Sunucuda çizim kararlılığı için Agg modu
@@ -36,6 +33,7 @@ hide_header_footer()
 handle_session_limit()
 # -------------------------
 
+# Session State Başlangıç Değerleri
 if 'page' not in st.session_state: st.session_state.page = 'analiz'
 if 'lat' not in st.session_state: st.session_state.lat = 40.5850
 if 'lon' not in st.session_state: st.session_state.lon = 36.9450
@@ -54,13 +52,20 @@ def logout():
 
 
 def update_from_input():
+    """Sidebar'daki input değişince haritayı günceller."""
     st.session_state.lat = st.session_state.input_lat
     st.session_state.lon = st.session_state.input_lon
 
 
 def update_from_map(clicked_lat, clicked_lon):
+    """Haritaya tıklanınca ana değişkenleri günceller ve BAYRAK bırakır."""
+    # 1. Ana değişkenleri güncelle
     st.session_state.lat = clicked_lat
     st.session_state.lon = clicked_lon
+
+    # 2. KRİTİK DÜZELTME: Widget key'leri (input_lat) burada ASLA güncellenmez.
+    # Bunun yerine "Haritadan geldim" bayrağı bırakıyoruz.
+    st.session_state.map_updater = True
 
 
 def go_home(): st.session_state.page = 'analiz'
@@ -96,10 +101,25 @@ else:
 
         st.divider()
         st.markdown("### 📍 Konum Kontrolü")
-        st.number_input("Enlem", key='input_lat', value=st.session_state.lat, format="%.6f",
-                        on_change=update_from_input)
-        st.number_input("Boylam", key='input_lon', value=st.session_state.lon, format="%.6f",
-                        on_change=update_from_input)
+
+        # Eğer harita tıklanmışsa (bayrak varsa), widget'lar çizilmeden ÖNCE değerlerini güncelle
+        if st.session_state.get("map_updater", False):
+            st.session_state.input_lat = st.session_state.lat
+            st.session_state.input_lon = st.session_state.lon
+            st.session_state.map_updater = False  # Bayrağı indir
+        # ---------------------------------------------
+
+        # Çift Yönlü Senkronizasyon (Value session_state'den gelir)
+        st.number_input("Enlem", key='input_lat', format="%.6f", on_change=update_from_input)
+        st.number_input("Boylam", key='input_lon', format="%.6f", on_change=update_from_input)
+
+        # # GPS Butonu
+        # if st.button("📍 Konumumu Sıfırla (Tokat)", width="stretch"):
+        #     st.session_state.lat = 40.5850
+        #     st.session_state.lon = 36.9450
+        #     st.session_state.map_updater = True  # Resetlenince de kutucuklar güncellensin
+        #     st.rerun()
+
         kw_power = st.number_input("Kurulu Güç (kWp)", value=100, step=10)
 
         elec_price = st.number_input("Elektrik Satış Fiyatı (USD/kWh)", min_value=0.001, max_value=1.0, value=0.130,
@@ -107,15 +127,24 @@ else:
                                                                       "financials") else 0.130
 
     # --- ANA EKRAN ---
-    st.title("⚡ AgroSolar Platform")
+    st.title("⚡ AgroSolar | Akıllı Enerji Analiz Platformu")
+    st.markdown("""
+        <div style="background-color: #fff3cd; color: #856404; padding: 12px; border-radius: 8px; border: 1px solid #ffeeba; margin-bottom: 20px;">
+            <h6 style="margin: 0;">🖥️ En İyi Deneyim İçin Masaüstü Kullanın</h6>
+            <p style="margin: 5px 0 0 0; font-size: 13px;">
+                Karmaşık CBS (GIS) analizleri ve PDF rapor oluşturma işlemleri için platformumuzu geniş ekranda kullanmanızı öneririz.
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+
     col1, col2 = st.columns([2, 1])
 
     with col1:
-        # 1. Katman Seçimi (Altlıklar)
+        # 1. Katman Seçimi
         map_options = ROLE_PERMISSIONS[st.session_state.user_role]["map_layers"]
         secim = st.radio("Görünüm", map_options, horizontal=True, label_visibility="collapsed")
 
-        # 2. Şebeke Katmanı Anahtarı (TOGGLE) - Sadece Yetkisi Olanlara
+        # 2. Şebeke Katmanı Anahtarı
         show_grid = False
         if has_permission(st.session_state.user_role, "grid_network_view"):
             show_grid = st.toggle("⚡ Ulusal İletim Şebekesini Göster", value=False)
@@ -133,51 +162,51 @@ else:
         # Haritayı Başlat
         m = folium.Map(location=[st.session_state.lat, st.session_state.lon], zoom_start=16, tiles=tiles, attr=attr)
 
-        # --- MODÜLER ŞEBEKE KATMANI ENTEGRASYONU ---
+        # --- MODÜLER ŞEBEKE KATMANI ---
         if show_grid:
-            # Dosya yolunu hatasız bul
             base_dir = os.path.dirname(os.path.abspath(__file__))
             kmz_file_path = os.path.join(base_dir, "data", "trafo_merkez.kmz")
 
-            # Veriyi sessizce çek
             grid_data = parse_grid_data(kmz_file_path)
 
-            # Bilgilendirme
             if grid_data:
                 st.toast(f"✅ {len(grid_data)} şebeke noktası yüklendi!", icon="⚡")
+
+                # PERFORMANS: Marker Cluster
+                marker_cluster = MarkerCluster(name="Trafo Merkezleri").add_to(m)
+
+                for item in grid_data:
+                    if item['type'] == 'Point':
+                        popup_html = create_substation_popup(item['name'], item['mw'], item['total'])
+                        color = get_grid_color(item['mw'])
+                        folium.CircleMarker(
+                            location=item['coords'],
+                            radius=6, color=color, fill=True, fill_opacity=0.8,
+                            popup=folium.Popup(popup_html, max_width=250)
+                        ).add_to(marker_cluster)
+                    elif item['type'] == 'Line':
+                        folium.PolyLine(
+                            item['path'], color="blue", weight=2, opacity=0.6,
+                            tooltip=f"ENH: {item['name']}"
+                        ).add_to(m)
             else:
                 st.error(f"⚠️ Veri okunamadı. Yol: {kmz_file_path}")
-                if not os.path.exists(kmz_file_path):
-                    st.caption("🔍 İPUCU: 'data' klasörünün main.py ile aynı yerde olduğundan emin olun.")
-
-            # Haritaya Çiz
-            for item in grid_data:
-                if item['type'] == 'Point':
-                    popup_html = create_substation_popup(item['name'], item['mw'], item['total'])
-                    color = get_grid_color(item['mw'])
-                    folium.CircleMarker(
-                        location=item['coords'],
-                        radius=6, color=color, fill=True, fill_opacity=0.8,
-                        popup=folium.Popup(popup_html, max_width=250)
-                    ).add_to(m)
-                elif item['type'] == 'Line':
-                    folium.PolyLine(
-                        item['path'], color="blue", weight=2, opacity=0.6,
-                        tooltip=f"ENH: {item['name']}"
-                    ).add_to(m)
 
         # Kullanıcı Konum İşaretçisi
         folium.Marker([st.session_state.lat, st.session_state.lon],
                       icon=folium.Icon(color="red", icon="bolt", prefix="fa")).add_to(m)
 
-        output = st_folium(m, height=500, width="100%", returned_objects=["last_clicked"])
+        # --- HARİTA ÇIKTISI VE TIKLAMA YAKALAMA ---
+        output = st_folium(m, height=500, width="100%", returned_objects=["last_clicked"], key="main_map")
+
         if output and output['last_clicked']:
             clat, clon = output['last_clicked']['lat'], output['last_clicked']['lng']
-            if abs(clat - st.session_state.lat) > 0.0001:
+            if abs(clat - st.session_state.lat) > 0.00001:
                 update_from_map(clat, clon)
                 st.rerun()
 
         st.markdown("---")
+        # Ufuk Analizi
         if has_permission(st.session_state.user_role, "horizon_shading"):
             horizon_graph = generate_horizon_plot(st.session_state.lat, st.session_state.lon)
             if horizon_graph and os.path.exists(horizon_graph):
