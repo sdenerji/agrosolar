@@ -2,4 +2,6 @@
 __pycache__/
 venv/
 .idea/
-*.pdftemp_kmz_cache/
+
+*.pdf
+#temp_kmz_cache/
