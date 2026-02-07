@@ -4,3 +4,4 @@ venv/
 .idea/
 *.pdf
 #temp_kmz_cache/
+.DS_Store
