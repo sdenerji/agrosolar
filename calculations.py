@@ -1,6 +1,6 @@
 import requests
 import pandas as pd
-import time
+import json
 import math
 import urllib3
 import matplotlib.pyplot as plt
@@ -108,102 +108,43 @@ def calculate_slope_aspect(lat, lon):
 
 # --- 3. ŞEBEKE VERİ İŞLEME (DİNAMİK DB ENTEGRASYONLU) ---
 # GÖRSEL KOMUTLAR YOK, SADECE SAF VERİ İŞLEME
-@st.cache_data(show_spinner="Ulusal Şebeke Verileri Ayıklanıyor...")
-def parse_grid_data(kmz_path):
+@st.cache_data(show_spinner="Ulusal Şebeke Verileri Yükleniyor...")
+def parse_grid_data(file_path):
     parsed_elements = []
-
-    # Dosya kontrolü (Sessiz)
-    if not os.path.exists(kmz_path):
-        print(f"DEBUG: Dosya bulunamadı -> {kmz_path}")
+    if not os.path.exists(file_path):
         return parsed_elements
 
-    try:
-        raw_content = ""
-        with zipfile.ZipFile(kmz_path, 'r') as z:
-            # KML dosyasını bul
-            kml_files = [f for f in z.namelist() if f.lower().endswith('.kml')]
-            if not kml_files:
-                return parsed_elements
+    # --- 1. HIZLI MOD: GEOJSON OKUMA ---
+    if file_path.endswith('.geojson'):
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
 
-            # İçeriği tek blok metin olarak oku (Regex için)
-            with z.open(kml_files[0]) as f:
-                raw_content = f.read().decode('utf-8', errors='ignore')
+            for feature in data.get('features', []):
+                props = feature.get('properties', {})
+                geom = feature.get('geometry', {})
 
-        # --- METİN MADENCİLİĞİ (REGEX) ---
-        # 1. Tüm Placemark bloklarını yakala
-        # <Placemark> ... </Placemark>
-        pm_pattern = re.compile(r'<[\w:]*Placemark.*?>(.*?)</[\w:]*Placemark>', re.DOTALL)
-        placemarks = pm_pattern.findall(raw_content)
-
-        for pm_text in placemarks:
-            name = "İsimsiz"
-            lat = None
-            lon = None
-            coords_found = False
-
-            # A. İSİM BULMA
-            # Google Earth verisindeki 'TRAFO_ADI' alanını ara
-            trafo_match = re.search(r'name="TRAFO_ADI">([^<]+)<', pm_text)
-            if trafo_match:
-                name = trafo_match.group(1).strip()
-            else:
-                # Standart name etiketi
-                name_match = re.search(r'<[\w:]*name>(.*?)</[\w:]*name>', pm_text)
-                if name_match:
-                    name = name_match.group(1).strip()
-
-            # B. KOORDİNAT BULMA (Strateji 1: Standart Coordinates)
-            coord_match = re.search(r'<[\w:]*coordinates>(.*?)</[\w:]*coordinates>', pm_text, re.DOTALL)
-
-            if coord_match:
-                c_data = coord_match.group(1).strip().split()
-                # Nokta (Trafo)
-                if len(c_data) == 1:
-                    parts = c_data[0].split(',')
-                    if len(parts) >= 2:
-                        lon = float(parts[0])
-                        lat = float(parts[1])
-                        coords_found = True
-
-                        db_info = get_substation_data(name)
-                        parsed_elements.append({
-                            'type': 'Point', 'name': name, 'coords': [lat, lon],
-                            'mw': db_info['mw'], 'total': db_info['total']
-                        })
-
-                # Hat (LineString)
-                elif len(c_data) > 1:
-                    path = []
-                    for p in c_data:
-                        parts = p.split(',')
-                        if len(parts) >= 2:
-                            path.append((float(parts[1]), float(parts[0])))
-
+                if geom['type'] == 'Point':
+                    # GeoJSON [lon, lat] -> Folium [lat, lon]
+                    lon, lat = geom['coordinates']
                     parsed_elements.append({
-                        'type': 'Line', 'name': name, 'path': path, 'kv': "154 kV"
+                        'type': 'Point',
+                        'name': props.get('name', 'İsimsiz'),
+                        'coords': [lat, lon],
+                        'mw': props.get('mw', 0),  # Kapasite verisi
+                        'total': props.get('total', 100)  # Toplam kapasite
                     })
-                    coords_found = True
-
-            # C. KOORDİNAT BULMA (Strateji 2: Tablo Verisi - ENLEM/BOYLAM)
-            # Eğer yukarıdaki bulamadıysa, Google Earth tablosuna bak
-            if not coords_found:
-                lat_match = re.search(r'name="ENLEM">([\d\.]+)<', pm_text)
-                lon_match = re.search(r'name="BOYLAM">([\d\.]+)<', pm_text)
-
-                if lat_match and lon_match:
-                    lat = float(lat_match.group(1))
-                    lon = float(lon_match.group(1))
-
-                    db_info = get_substation_data(name)
+                elif geom['type'] == 'LineString':
+                    path = [[c[1], c[0]] for c in geom['coordinates']]
                     parsed_elements.append({
-                        'type': 'Point', 'name': name, 'coords': [lat, lon],
-                        'mw': db_info['mw'], 'total': db_info['total']
+                        'type': 'Line',
+                        'name': props.get('name', 'İsimsiz'),
+                        'path': path
                     })
-
-    except Exception as e:
-        print(f"DEBUG: Parse Hatası -> {e}")
-
-    return parsed_elements
+            return parsed_elements
+        except Exception as e:
+            print(f"GeoJSON Okuma Hatası: {e}")
+            return []
 
 
 # --- 4. GÜNEŞ POTANSİYELİ (ÖN BELLEKLİ VE AĞIRLIKLI) ---

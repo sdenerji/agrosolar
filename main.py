@@ -191,18 +191,44 @@ else:
 
         # --- GÜNCEL ŞEBEKE GÖSTERİM BLOĞU ---
         if show_grid and can_view_grid:
-            geojson_path = "data/sebeke_verisi.geojson"
-            if os.path.exists(geojson_path):
-                with open(geojson_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+            # EKSİK OLAN SATIR EKLENDİ:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
 
-                folium.GeoJson(
-                    data,
-                    marker=folium.CircleMarker(radius=5, color="blue", fill=True),
-                    style_function=lambda x: {'color': 'blue', 'weight': 2},
-                    tooltip=folium.GeoJsonTooltip(fields=["name"], aliases=["İsim:"])
-                ).add_to(m)
-                st.toast("⚡ Şebeke verisi GeoJSON üzerinden anında yüklendi!", icon="✅")
+            # GeoJSON dosya yolunu oluştur
+            geojson_path = os.path.join(base_dir, "data", "sebeke_verisi.geojson")
+
+            # calculations.py içindeki fonksiyonu çağır
+            grid_data = parse_grid_data(geojson_path)
+
+            if grid_data:
+                # BÖLGESEL GRUPLAMA (CLUSTER)
+                marker_cluster = MarkerCluster(name="Trafo Merkezleri").add_to(m)
+
+                for item in grid_data:
+                    if item['type'] == 'Point':
+                        # Kapasiteye Göre Renk ve Popup
+                        popup_html = create_substation_popup(item['name'], item['mw'], item['total'])
+                        color = get_grid_color(item['mw'])  # Yeşil/Kırmızı
+
+                        folium.CircleMarker(
+                            location=item['coords'],
+                            radius=8,
+                            color=color,
+                            fill=True,
+                            fill_opacity=0.8,
+                            popup=folium.Popup(popup_html, max_width=300)
+                        ).add_to(marker_cluster)
+
+                    elif item['type'] == 'Line':
+                        folium.PolyLine(
+                            item['path'],
+                            color="blue",
+                            weight=2,
+                            opacity=0.4,
+                            tooltip=f"ENH: {item['name']}"
+                        ).add_to(m)
+
+                st.toast("⚡ Şebeke verileri akıllı katman olarak yüklendi!", icon="✅")
         # ------------------------------------
 
         folium.Marker([st.session_state.lat, st.session_state.lon],
