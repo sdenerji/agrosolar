@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 from datetime import datetime
 import time
+import json  # GeoJSON okumak için eklendi
 
 # --- MODÜL IMPORTLARI ---
 from db_base import get_supabase
@@ -161,7 +162,6 @@ else:
                                          format="%.3f")
 
     # --- ANA EKRAN ---
-    # BAŞLIK GÜNCELLENDİ
     st.title("⚡ AgroSolar | Akıllı Arazi Enerji Analiz Platformu")
 
     col1, col2 = st.columns([2, 1])
@@ -189,25 +189,21 @@ else:
 
         m = folium.Map(location=[st.session_state.lat, st.session_state.lon], zoom_start=16, tiles=tiles, attr=attr)
 
+        # --- GÜNCEL ŞEBEKE GÖSTERİM BLOĞU ---
         if show_grid and can_view_grid:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            kmz_file_path = os.path.join(base_dir, "data", "trafo_merkez.kmz")
-            grid_data = parse_grid_data(kmz_file_path)
+            geojson_path = "data/sebeke_verisi.geojson"
+            if os.path.exists(geojson_path):
+                with open(geojson_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
 
-            if grid_data:
-                marker_cluster = MarkerCluster(name="Trafo Merkezleri").add_to(m)
-                for item in grid_data:
-                    if item['type'] == 'Point':
-                        popup_html = create_substation_popup(item['name'], item['mw'], item['total'])
-                        color = get_grid_color(item['mw'])
-                        folium.CircleMarker(
-                            location=item['coords'], radius=6, color=color, fill=True, fill_opacity=0.8,
-                            popup=folium.Popup(popup_html, max_width=250)
-                        ).add_to(marker_cluster)
-                    elif item['type'] == 'Line':
-                        folium.PolyLine(
-                            item['path'], color="blue", weight=2, opacity=0.6, tooltip=f"ENH: {item['name']}"
-                        ).add_to(m)
+                folium.GeoJson(
+                    data,
+                    marker=folium.CircleMarker(radius=5, color="blue", fill=True),
+                    style_function=lambda x: {'color': 'blue', 'weight': 2},
+                    tooltip=folium.GeoJsonTooltip(fields=["name"], aliases=["İsim:"])
+                ).add_to(m)
+                st.toast("⚡ Şebeke verisi GeoJSON üzerinden anında yüklendi!", icon="✅")
+        # ------------------------------------
 
         folium.Marker([st.session_state.lat, st.session_state.lon],
                       icon=folium.Icon(color="red", icon="bolt", prefix="fa")).add_to(m)
@@ -242,17 +238,10 @@ else:
             st.write(f"**Bakı Yönü / Cephe:** {baki}")
             render_analysis_box("Cephe", report["aspect"]["status"], report["aspect"]["color"])
 
-            # --- YENİ: ENGEL/GÖLGE DURUMU (ARTIK HERKESE AÇIK) ---
-            # Finansal yetkisi olmasa bile gölge analizini görsün.
-
-            # Verileri hesapla
             horizon_df = get_horizon_analysis(st.session_state.lat, st.session_state.lon)
             shading_metrics = get_shading_metrics(horizon_df)
-
-            # Kayıp faktörünü hesapla (Finansal analiz için lazım olacak)
             loss_factor = shading_metrics[1] if shading_metrics else 1.0
 
-            # Ekrana bas (Engel Durumu Kutusu)
             st.write(f"**Maksimum Engel:** {shading_metrics[0]}")
             try:
                 max_angle_val = float(shading_metrics[0].split('°')[0])
@@ -262,12 +251,8 @@ else:
             sh_status, sh_color, sh_note = evaluate_shading_suitability(max_angle_val)
             render_analysis_box("Engel Durumu", sh_status, sh_color)
             st.caption(f"ℹ️ {sh_note}")
-            # ----------------------------------------------------
 
-            # 4. FİNANSAL ANALİZ (KİLİTLİ ALAN - SADECE PRO/ULTRA)
             if has_permission(st.session_state.user_role, "financials"):
-
-                # Yukarıda hesaplanan loss_factor burada kullanılıyor
                 res = get_solar_potential(st.session_state.lat, st.session_state.lon, baki, kw_power, egim, rakim,
                                           loss_factor=loss_factor, elec_price=elec_price)
 
@@ -296,7 +281,6 @@ else:
                                            file_name=f"SD_Enerji_Rapor_{datetime.now().strftime('%Y%m%d')}.pdf",
                                            mime="application/pdf", width="stretch", key="btn_download_final")
             else:
-                # --- YETKİSİ OLMAYANLAR (FREE) ---
                 st.divider()
                 st.info("🔒 **Finansal Veriler Kilitli**")
                 st.markdown("""
