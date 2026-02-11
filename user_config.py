@@ -37,7 +37,8 @@ ROLE_PERMISSIONS = {
             "report_access",
             "kml_import",
             "electrical_engine",  # String/Voltaj Hesabı (ULTRA'YA ÖZEL)
-            "panel_placement"     # Otomatik Yerleşim (ULTRA'YA ÖZEL)
+            "panel_placement",     # Otomatik Yerleşim (ULTRA'YA ÖZEL)
+            "3d_analysis"
         ]
     }
 }
