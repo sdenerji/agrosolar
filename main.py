@@ -17,6 +17,7 @@ from ui_utils import (hide_header_footer, render_google_login, render_analysis_b
                       create_substation_popup, get_grid_color,
                       render_announcement_banner, render_admin_announcement_editor)
 from auth_ui import show_auth_pages
+from ai_service import generate_smart_report_summary
 
 # Servisler
 from gis_service import process_parsel_geojson, get_basemaps, fetch_pvgis_horizon, get_pvgis_production
@@ -37,9 +38,9 @@ from calculations import (
     get_suitability_badge,
     calculate_bankability_metrics,
     calculate_geodesic_area,
-    interpret_monthly_data,  # Yeni
-    interpret_cash_flow,  # Yeni
-    interpret_shading  # Yeni
+    interpret_monthly_data,
+    interpret_cash_flow,
+    interpret_shading
 )
 
 from equipment_db import PANEL_LIBRARY, INVERTER_LIBRARY
@@ -96,7 +97,7 @@ if 'panel_tilt' not in st.session_state: st.session_state.panel_tilt = 30
 
 if 'selected_panel_brand' not in st.session_state: st.session_state.selected_panel_brand = list(PANEL_LIBRARY.keys())[0]
 if 'selected_inverter_brand' not in st.session_state: st.session_state.selected_inverter_brand = \
-list(INVERTER_LIBRARY.keys())[0]
+    list(INVERTER_LIBRARY.keys())[0]
 
 
 def init_app_session():
@@ -193,7 +194,7 @@ else:
                     if has_permission(st.session_state.user_role, "panel_placement"):
                         try:
                             geojson_data = json.load(uploaded_file)
-                            # process_parsel_geojson artık 5 değer döndürüyor
+                            # process_parsel_geojson artık 5 değer döndürüyor, burası DOĞRU
                             p_lat, p_lon, loc_data, success, msg = process_parsel_geojson(geojson_data)
 
                             if success:
@@ -205,7 +206,7 @@ else:
                                 st.session_state.horizon_data = None
                                 st.session_state.pvgis_yield_data = None
                                 st.session_state.last_processed_file = uploaded_file.name
-                                st.session_state.map_initialized = False
+                                st.session_state.map_initialized = False  # Haritayı yenile
                                 st.success(
                                     f"✅ Parsel: {loc_data.get('ilce', '')} / {loc_data.get('ada', '')}-{loc_data.get('parsel', '')}")
                                 time.sleep(0.5);
@@ -245,6 +246,7 @@ else:
     col1, col2 = st.columns([2, 1])
 
     # --- HESAPLAMALAR ---
+    # Bu fonksiyon artık gerçek veriyi çekecek (calculations.py içindeki değişiklikle)
     rakim, egim, baki = calculate_slope_aspect(st.session_state.lat, st.session_state.lon)
     real_area_m2 = calculate_geodesic_area(st.session_state.parsel_geojson)
 
@@ -295,8 +297,12 @@ else:
             else:
                 st.toast("🔒 Pro özellik!", icon="🚫")
 
-        should_auto_locate = not st.session_state.map_initialized
-        m = create_base_map(st.session_state.lat, st.session_state.lon, selected_config, auto_locate=should_auto_locate)
+        # --- DÜZELTİLEN AUTO LOCATE MANTIĞI ---
+        # Parsel Yüklüyse (geojson var) -> GPS KAPALI (False) -> Parsele odaklan
+        # Parsel Yoksa (geojson yok) ve harita yeni açılıyorsa -> GPS AÇIK (True) -> Konuma git
+        should_use_gps = (not st.session_state.map_initialized) and (st.session_state.parsel_geojson is None)
+
+        m = create_base_map(st.session_state.lat, st.session_state.lon, selected_config, auto_locate=should_use_gps)
         st.session_state.map_initialized = True
 
         if show_grid:
@@ -356,7 +362,6 @@ else:
                                                               value=st.session_state.elec_price, format="%.3f",
                                                               step=0.01)
 
-            # --- DÜZELTME: step=50.0 ---
             st.session_state.unit_capex = c_fin2.number_input("Birim Yatırım Maliyeti ($/kWp)",
                                                               value=st.session_state.unit_capex, format="%.0f",
                                                               step=50.0)
@@ -426,12 +431,14 @@ else:
             if st.session_state.layout_data:
                 l_data = st.session_state.layout_data
                 st.info(f"Panel: {l_data['count']} Adet | Güç: {l_data['capacity_kw']} kWp")
-
-                # --- MÜHENDİSLİK NOTU (GERİ EKLENDİ) ---
                 skipped = l_data.get('skipped_rows', 0)
+                eng_note_text = None  # Varsayılan boş
                 if skipped > 0:
-                    st.warning(
-                        f"🔍 **Mühendislik Notu:** Geometrik kısıtlamalar nedeniyle **{skipped}** adet panel sırası atlanmıştır. Daha sıkı yerleşim için daha küçük sehpa tiplerini deneyebilirsiniz.")
+                    # Detaylı açıklama geri eklendi
+                    eng_note_text = (
+                        f"Geometrik sınırlar ve çekme payları (Setback) nedeniyle {skipped} adet panel sırası parsele sığmamıştır. "
+                        f"Çekme paylarını düşürmeyi veya daha küçük sehpa tiplerini (örn: 2x10 yerine 2x5) kullanmayı deneyebilirsiniz.")
+                    st.warning(f"⚠️ Mühendislik Notu: {eng_note_text}")
 
             if st.session_state.string_results:
                 st.success(f"⚡ String: {st.session_state.string_results.get('max_string_size', '-')} panel (Max)")
@@ -480,16 +487,69 @@ else:
                     # --- YENİ EKLENEN YORUMLAR ---
                     "monthly_comment": monthly_comment,
                     "cash_comment": cash_comment,
-                    "shading_comment": shading_comment
+                    "shading_comment": shading_comment,
+                    "engineering_note": eng_note_text
                 }
 
                 st.markdown("---")
-                if st.button("📊 Banka Formatında Rapor", use_container_width=True):
-                    with st.spinner("PDF Hazırlanıyor..."):
-                        # Harita görselini çiz (Eksikse)
-                        generate_parsel_plot(st.session_state.parsel_geojson)
-                        st.session_state.pdf_bytes = generate_full_report(st.session_state.report_package)
-                        st.success("Rapor Hazır!")
+                # --- RAPOR OLUŞTURMA BUTONU ---
+                if st.button("📊 Rapor Oluştur", use_container_width=True):
+                    if st.session_state.parsel_geojson:
+                        with st.spinner("Yapay Zeka ve Rapor Hazırlanıyor..."):
+                            # 1. Önce Veri Paketini (report_data) Oluşturalım
+                            # (Burada tanımladığımız için artık "Unresolved Reference" hatası vermez)
+                            bank_data = calculate_bankability_metrics(res_prod, res_cost, st.session_state.elec_price)
+
+                            report_data = {
+                                "lat": st.session_state.lat,
+                                "lon": st.session_state.lon,
+                                "kwp": kw_power,
+                                "kwh": res_prod,
+                                "roi": res_roi,
+                                "cost": int(res_cost),
+                                "irr": bank_data['irr'],
+                                "npv": bank_data['npv'],
+                                "co2": bank_data['co2'],  # <--- BU EKSİK SATIRI EKLEYİN
+                                "trees": bank_data['trees'],
+                                "cash_flow": bank_data['cash_flow'],
+                                "slope": egim,
+                                "aspect": baki,
+                                "location_data": st.session_state.parsel_location,
+                                "shading_comment": shading_comment,
+                                "username": st.session_state.username,
+                                "panel_model": st.session_state.selected_panel_model,
+                                "inv_model": sel_i_model,
+                                "engineering_note": eng_note_text
+                            }
+
+                            # 2. Şimdi bu paketi AI Servisine Gönderelim
+                            # ai_service içindeki 'data' buradaki 'report_data' olacak
+                            try:
+                                from ai_service import generate_smart_report_summary
+
+                                # Fonksiyonu çağır
+                                ai_comment = generate_smart_report_summary(report_data)
+                                report_data["ai_summary"] = ai_comment
+
+                            except Exception as e:
+                                # HATA BURADA: Bunu ekrana yazdıralım ki ne olduğunu görelim!
+                                st.error(f"⚠️ YAPAY ZEKA BAĞLANTI HATASI: {str(e)}")
+
+                                # Rapor patlamasın diye yedek metni koyuyoruz
+                                report_data[
+                                    "ai_summary"] = "Teknik veriler ışığında projenin yüksek verimlilik potansiyeline sahip olduğu öngörülmektedir."
+
+                                # 3. Görselleri Hazırla
+                            generate_parsel_plot(st.session_state.parsel_geojson, st.session_state.layout_data)
+                            report_data["graph_path"] = generate_earnings_graph(*res_pot[:4]) if res_pot else None
+                            report_data["monthly_data"] = st.session_state.pvgis_yield_data[
+                                'monthly_data'] if st.session_state.pvgis_yield_data else None
+
+                            # 4. PDF Oluştur
+                            st.session_state.pdf_bytes = generate_full_report(report_data)
+                            st.success("🤖 Yapay Zeka Analizi ve Rapor Hazır!")
+                    else:
+                        st.error("Önce bir parsel yüklemelisiniz!")
 
                 if "pdf_bytes" in st.session_state:
                     file_name = f"{st.session_state.username}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"

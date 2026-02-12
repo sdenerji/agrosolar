@@ -12,9 +12,30 @@ matplotlib.use('Agg')
 
 
 def clean_text(text):
-    """PDF uyumluluğu için Türkçe karakterleri temizler."""
+    """
+    PDF uyumluluğu için Türkçe karakterleri ve AI'dan gelen
+    Unicode özel karakterleri (akıllı tırnaklar vb.) temizler.
+    """
+    if text is None: return "-"
+
+    # Unicode Karakter Temizliği (Hata veren süslü karakterler)
+    replacements = {
+        '\u2013': '-',  # en dash
+        '\u2014': '-',  # em dash
+        '\u2018': "'",  # left single quote
+        '\u2019': "'",  # right single quote (Hatanın sebebi buydu)
+        '\u201c': '"',  # left double quote
+        '\u201d': '"',  # right double quote
+        '\u2022': '*',  # bullet point
+        '\u2026': '...',  # ellipsis
+    }
+
+    for key, val in replacements.items():
+        text = text.replace(key, val)
+
+    # Türkçe Karakter Map'leme
     map_tr = str.maketrans("ğĞüÜşŞİıöÖçÇ", "gGuUsSiioOcc")
-    return str(text).translate(map_tr)
+    return str(text).translate(map_tr).encode('latin-1', 'ignore').decode('latin-1')
 
 
 def generate_monthly_plot(monthly_data):
@@ -87,13 +108,17 @@ def generate_full_report(d):
     pdf.set_text_color(0, 0, 0)
     pdf.set_font('Arial', '', 10)
 
-    summary_text = (
-        f"Bu rapor, koordinatlari belirtilen sahada kurulmasi planlanan {d['kwp']} kWp gucundeki "
-        "Gunes Enerji Santrali'nin teknik ve finansal analizini icermektedir. Yapilan hesaplamalar, "
-        "bolgesel meteorolojik veriler ve secilen yuksek verimli ekipmanlar baz alinarak olusturulmustur."
-    )
-    pdf.multi_cell(0, 6, clean_text(summary_text))
-    pdf.ln(5)
+    pdf.set_font('Arial', 'B', 12)
+    pdf.set_text_color(28, 90, 186)
+    pdf.cell(0, 10, clean_text("1. YONETICI OZETI"), ln=True)
+
+    # AI Özeti Varsa Şık Bir Kutuda Göster
+    if d.get('ai_summary'):
+        pdf.set_fill_color(248, 249, 250)  # Çok hafif gri/mavi fon
+        pdf.set_font('Arial', 'I', 10)
+        pdf.set_text_color(50, 50, 50)
+        pdf.multi_cell(0, 6, clean_text(d['ai_summary']), border=1, fill=True)
+        pdf.ln(5)
 
     pdf.set_fill_color(245, 245, 245)
     metrics = [
@@ -128,27 +153,56 @@ def generate_full_report(d):
     pdf.cell(0, 7, clean_text(f"- Inverter Modeli: {d['inv_model']}"), ln=True)
     pdf.cell(0, 7, clean_text(f"- Saha Egimi: %{d['slope']} | Bakisi: {d['aspect']}"), ln=True)
 
-    # --- HARİTA VE PARSEL BİLGİSİ ---
+    # --- HARİTA VE PARSEL BİLGİSİ (DÜZENLENDİ) ---
     map_path = "temp_report_map.png"
     if os.path.exists(map_path):
         pdf.ln(5)
-        # 1. Önce Resmi Bas
-        pdf.image(map_path, x=15, w=180)
-        pdf.ln(2)
 
-        # 2. Sonra Bilgiyi Bas (DÜZELTME BURADA)
+        # 1. Parsel Görünümü Başlığı
+        pdf.set_font('Arial', 'B', 10)
+        pdf.set_text_color(50, 50, 50)
+        pdf.cell(0, 6, clean_text("SAHA VE PARSEL GORUNUMU"), ln=True, align='C')
+
+        # 2. Resmi Küçültüp Ortala (w=180 -> w=130)
+        # A4 genişlik ~210mm. w=130 ise x = (210-130)/2 = 40
+        pdf.image(map_path, x=40, w=130)
+        pdf.ln(1)  # Resim ile yazı arasına az boşluk
+
+        # 3. Tapu Bilgilerini Bas
         loc = d.get('location_data', {})
         if loc:
-            pdf.set_fill_color(240, 240, 240)
+            pdf.set_fill_color(240, 240, 240)  # Hafif gri
             pdf.set_font('Arial', 'B', 9)
-            info_str = f"TAPU KAYDI: {loc.get('il', '-')} Ili, {loc.get('ilce', '-')} Ilcesi, {loc.get('mahalle', '-')} Mh. | ADA: {loc.get('ada', '-')} | PARSEL: {loc.get('parsel', '-')}"
-            pdf.cell(0, 8, clean_text(info_str), ln=True, align='C', fill=True)
+            pdf.set_text_color(0, 0, 0)
+
+            # Veri Hazırlığı (Hata önleyici .get ile)
+            il = str(loc.get('il', '-')).upper()
+            ilce = str(loc.get('ilce', '-')).upper()
+            mah = str(loc.get('mahalle', '-')).upper()
+            ada = str(loc.get('ada', '-'))
+            parsel = str(loc.get('parsel', '-'))
+
+            # Tapu Stringi
+            info_str = clean_text(f"TAPU KAYDI: {il} / {ilce} - {mah} Mh. | ADA: {ada} | PARSEL: {parsel}")
+
+            # Tablo gibi görünen tek satır (Border=1)
+            pdf.cell(0, 8, info_str, ln=True, align='C', fill=True, border=1)
+
+        pdf.ln(5)
+
+    # --- MÜHENDİSLİK NOTU (BURAYA EKLENEBİLİR) ---
+    if d.get('engineering_note'):
+        pdf.set_text_color(200, 50, 50)  # Kırmızımsı uyarı rengi
+        pdf.set_font('Arial', 'I', 9)
+        pdf.multi_cell(0, 5, clean_text(f"MUHENDISLIK NOTU: {d['engineering_note']}"))
+        pdf.set_text_color(0, 0, 0)
         pdf.ln(5)
 
     if d.get('monthly_data'):
         monthly_chart = generate_monthly_plot(d['monthly_data'])
         if monthly_chart and os.path.exists(monthly_chart):
-            pdf.image(monthly_chart, x=15, w=180)
+            # Grafik de sayfaya sığsın diye biraz ortalanabilir
+            pdf.image(monthly_chart, x=25, w=160)
 
             # --- YORUM ALANI ---
             if d.get('monthly_comment'):
