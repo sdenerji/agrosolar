@@ -8,8 +8,8 @@ except ImportError:
     def sign_up_user(u, e, p):
         return False, "Veritabanı modülü bulunamadı."
 
-# --- YENİ EKLENEN IMPORT ---
-# Session ID'yi güncellemek için bu modülü çağırıyoruz
+# --- SESSION MANAGER IMPORT ---
+# IP adresini kaydetmek için gerekli
 try:
     from session_manager import register_new_session_login
 except ImportError:
@@ -42,21 +42,33 @@ def show_auth_pages(supabase):
 
             if submit_btn:
                 try:
+                    # 1. Supabase Auth ile Giriş Dene
                     auth_response = supabase.auth.sign_in_with_password({"email": email_input, "password": p_input})
+
                     if auth_response.user:
-                        # 1. Session State'i Güncelle
+                        user_id = auth_response.user.id
+
+                        # 2. KRİTİK: IP Adresini 'active_sessions' tablosuna kaydet
+                        register_new_session_login(user_id)
+
+                        # 3. KULLANICI DETAYLARINI ÇEK (Rol, Kullanıcı Adı)
+                        # Bunu yapmazsak main.py yenilenene kadar rol "Free" kalabilir.
+                        try:
+                            user_data = supabase.table("users").select("role, username").eq("id", user_id).execute()
+                            if user_data.data:
+                                st.session_state.user_role = user_data.data[0].get("role", "Free")
+                                st.session_state.username = user_data.data[0].get("username", "Kullanıcı")
+                        except Exception as e:
+                            print(f"Rol Çekme Hatası: {e}")
+                            st.session_state.user_role = "Free"
+
+                        # 4. Session State'i Güncelle
                         st.session_state.logged_in = True
-                        st.session_state.user_id = auth_response.user.id
+                        st.session_state.user_id = user_id
                         st.session_state.user_email = auth_response.user.email
 
-                        # --- KRİTİK EKLEME BURASI ---
-                        # Giriş başarılı olduğu an, bu cihazı "yetkili cihaz" olarak kaydet.
-                        # ID'yi gönderiyoruz (session_manager.py user_id bekliyor)
-                        register_new_session_login(auth_response.user.id)
-                        # ----------------------------
-
-                        st.success("Giriş Başarılı!")
-                        time.sleep(0.5)  # Kısa bir bekleme (DB yazma işlemi için)
+                        st.success(f"Hoşgeldiniz, {st.session_state.get('username', '')}!")
+                        time.sleep(0.5)
                         st.rerun()
 
                 except Exception as e:

@@ -3,6 +3,7 @@ import json
 import os
 import difflib
 import re
+from datetime import datetime
 
 # --- DOSYA YOLLARI ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -12,69 +13,80 @@ GEOJSON_PATH = os.path.join(DATA_DIR, "sebeke_verisi.geojson")
 OUTPUT_JSON_PATH = os.path.join(DATA_DIR, "teias_kapasite.json")
 
 
-# --- GELİŞMİŞ NORMALİZASYON FONKSİYONU ---
 def normalize_name(name):
     """
-    İsimleri kök haline getirir.
-    Örn: 'ALMUS HES' -> 'ALMUS'
-    Örn: 'NİKSAR TM' -> 'NIKSAR'
+    İsimleri temizler ancak ana karakteristiği bozmaz.
+    Örn: 'ÇAN-2 TM' -> 'CAN-2' (Tire kalır, TM gider)
     """
     if not name: return ""
 
-    # 1. Büyük harf ve Türkçe karakter düzeltme
-    name = str(name).replace('İ', 'I').replace('ı', 'i').upper()
-    replacements = {"Ş": "S", "Ğ": "G", "Ü": "U", "Ö": "O", "Ç": "C"}
-    for old, new in replacements.items():
-        name = name.replace(old, new)
+    # 1. Temizlik ve Büyük Harf
+    name = str(name).replace('\n', ' ').strip().upper()
 
-    # 2. SİLİNECEK KELİMELER LİSTESİ (Genişletildi)
-    # Buradaki kelimeleri isimden tamamen atıyoruz.
+    # 2. Türkçe Karakter Dönüşümü (Standartlaştırma için şart)
+    tr_map = str.maketrans("ĞÜŞİÖÇIİ", "GUSIOCII")
+    name = name.translate(tr_map)
+
+    # 3. SİLİNECEK KELİMELER (Sadece teknik terimler)
+    # Kelimenin tam eşleşmesi için boşluklu versiyonları silinir.
     remove_words = [
-        " TM", " TRAFO MERKEZI", " GIS", " MERKEZI", " SUBSTATION",
-        " HES", " RES", " GES", " KOK", " DM", " DGKCS", " SANTRALI"
+        " TRAFO MERKEZI", " MERKEZI", " MERKEZ", " SUBSTATION",
+        " TRAFO", " TM", " GIS", " KOK", " DM", " INDIRICI",
+        " HES", " RES", " GES", " JES", " TES",
+        " DGKCS", " DGKÇS", " DOGALGAZ", " SANTRALI", " ENERJI"
     ]
 
     for word in remove_words:
-        name = name.replace(word, "")
+        # Kelimeyi normalize et (listenin kendisini de çevirerek ara)
+        clean_word = word.translate(tr_map)
+        name = name.replace(clean_word, "").replace(word, "")
 
-    # 3. Sadece harf ve rakamları bırak (Noktalama işaretlerini sil)
-    name = re.sub(r'[^A-Z0-9]', '', name)
-
+    # 4. Fazla boşlukları temizle ama harf/rakam/tire silme
     return name.strip()
 
 
-def run_import():
-    print("🚀 TEİAŞ Veri Aktarım Aracı (Gelişmiş Eşleştirme)...")
+def detect_voltage(tm_name):
+    """TM isminden gerilim seviyesini tahmin eder."""
+    if "380" in tm_name:
+        return "380 kV"
+    return "154 kV"  # Varsayılan dağıtım gerilimi
 
-    # 1. GEOJSON'I OKU VE HARİTALAMA YAP
+
+def run_import():
+    print("🚀 TEİAŞ Veri Aktarım Aracı (Düzeltilmiş Versiyon)...")
+
+    # 1. GEOJSON İNDEKSLEME
     if not os.path.exists(GEOJSON_PATH):
-        print("❌ GeoJSON bulunamadı.")
+        print("❌ GeoJSON dosyası bulunamadı.")
         return
 
     with open(GEOJSON_PATH, "r", encoding="utf-8") as f:
         geo_data = json.load(f)
 
-    # GeoJSON'daki her ismin hem kendisini hem de normalize halini sakla
-    # Key: Normalize İsim (ALMUS), Value: Gerçek İsim (ALMUS HES)
+    # GeoJSON lookup sözlüğü: { "NORMALIZE_ISIM": "Gerçek Harita İsmi" }
     geo_lookup = {}
-
     for feature in geo_data.get("features", []):
         if feature["geometry"]["type"] == "Point":
             raw_name = feature["properties"].get("name", "")
             if raw_name:
+                # GeoJSON'daki ismi de aynı kurallarla normalize et
                 norm = normalize_name(raw_name)
-                # Eğer birden fazla aynı isim varsa (örn: ALMUS ve ALMUS TM), ilkini al
-                if norm not in geo_lookup:
+                # İsim çakışması varsa ilkini tut
+                if norm and norm not in geo_lookup:
                     geo_lookup[norm] = raw_name
+                # Alternatif: Boşluksuz halini de ekle (CAN 2 -> CAN2)
+                norm_nospace = norm.replace(" ", "").replace("-", "")
+                if norm_nospace and norm_nospace not in geo_lookup:
+                    geo_lookup[norm_nospace] = raw_name
 
     print(f"🗺️ Harita İndeksi: {len(geo_lookup)} nokta tarandı.")
 
-    # 2. PDF'İ OKU
+    # 2. PDF İŞLEME
     if not os.path.exists(PDF_PATH):
-        print("❌ PDF bulunamadı.")
+        print("❌ PDF dosyası bulunamadı.")
         return
 
-    print("📄 PDF İşleniyor...")
+    print("⏳ PDF okunuyor...")
     matched_data = []
     total_mw = 0
     match_count = 0
@@ -83,72 +95,87 @@ def run_import():
         for page in pdf.pages:
             table = page.extract_table()
             if not table: continue
+
             for row in table:
-                if not row or len(row) < 3: continue
+                # Satır kontrolü: En az 5 sütun olmalı (İl, TM, Bara, Edaş, Kapasite)
+                if not row or len(row) < 5: continue
 
-                tm_name_pdf = row[1]  # PDF'teki İsim (Örn: ALMUS)
-                capacity_str = row[-1]
+                # --- SÜTUN SEÇİMİ (DÜZELTİLDİ) ---
+                # row[0]: İL (Örn: ADANA)
+                # row[1]: TM ADI (Örn: ALADAĞ TM)
+                # row[4]: KAPASİTE (Örn: 0,00)
 
+                tm_name_pdf = row[1]
+                capacity_str = row[4]
+
+                # Başlık veya boş satır kontrolü
                 if not tm_name_pdf or "TRANSFORMATÖR" in str(tm_name_pdf): continue
 
-                # Kapasite Dönüşümü
+                # Kapasite Dönüşümü (TR Formatı: 1.234,56 -> 1234.56)
                 try:
                     if isinstance(capacity_str, str):
                         clean_cap = capacity_str.replace(".", "").replace(",", ".")
                         capacity_val = float(clean_cap)
                     else:
-                        capacity_val = float(capacity_str)
+                        capacity_val = float(capacity_str) if capacity_str else 0.0
                 except:
                     capacity_val = 0.0
 
-                # --- EŞLEŞTİRME MANTIĞI ---
-                norm_pdf = normalize_name(tm_name_pdf)  # ALMUS -> ALMUS
+                # --- EŞLEŞTİRME ---
+                norm_pdf = normalize_name(tm_name_pdf)  # Örn: "ALADAG"
+                norm_pdf_nospace = norm_pdf.replace(" ", "").replace("-", "")  # Örn: "ALADAG"
 
-                # 1. Doğrudan Kök İsim Eşleşmesi
-                real_name = geo_lookup.get(norm_pdf)  # geo_lookup["ALMUS"] -> "ALMUS HES" döner mi?
-                match_type = "TAM"
+                real_name = None
 
-                # 2. Eğer bulamazsa, "İçerme" kontrolü yap
+                # 1. Tam Eşleşme
+                if norm_pdf in geo_lookup:
+                    real_name = geo_lookup[norm_pdf]
+                # 2. Boşluksuz/Tiresiz Eşleşme (CAN-2 vs CAN 2)
+                elif norm_pdf_nospace in geo_lookup:
+                    real_name = geo_lookup[norm_pdf_nospace]
+
+                # 3. İsim İçerme (Kısmi Eşleşme)
                 if not real_name:
-                    for g_norm, g_raw in geo_lookup.items():
-                        # PDF'teki isim haritadakinin içindeyse veya tam tersi
-                        if (norm_pdf in g_norm) or (g_norm in norm_pdf):
-                            real_name = g_raw
-                            match_type = "KISMI"
-                            break
+                    for g_key, g_val in geo_lookup.items():
+                        # Sadece yeterince uzun isimlerde ara (Hatalı eşleşmeyi önle)
+                        if len(g_key) > 3 and len(norm_pdf) > 3:
+                            if norm_pdf in g_key or g_key in norm_pdf:
+                                real_name = g_val
+                                break
 
-                # 3. Hala yoksa Bulanık Arama
-                if not real_name:
-                    matches = difflib.get_close_matches(norm_pdf, geo_lookup.keys(), n=1, cutoff=0.85)
-                    if matches:
-                        real_name = geo_lookup[matches[0]]
-                        match_type = "BULANIK"
+                # Eşleşme varsa veya yoksa da PDF verisini kaydet
+                # (Haritada olmasa bile listede görünmesi iyidir, haritada gösteremeyiz sadece)
 
-                if real_name:
-                    # Durum Rengi
-                    if capacity_val < 5:
-                        status = "KAPASİTE YOK"
-                    elif capacity_val < 20:
-                        status = "KISITLI"
-                    else:
-                        status = "UYGUN"
+                # Durum Belirle
+                if capacity_val <= 0:
+                    status = "KAPASİTE YOK"
+                elif capacity_val < 10:
+                    status = "KISITLI"
+                else:
+                    status = "UYGUN"
 
-                    matched_data.append({
-                        "name": real_name,  # Haritadaki ismi kaydet (Popup için şart)
-                        "teias_name": tm_name_pdf,
-                        "free_mw": capacity_val,
-                        "total_mw": 100,  # Varsayılan
-                        "status": status,
-                        "voltage": "154 kV"
-                    })
-                    total_mw += capacity_val
-                    match_count += 1
-                    # Log bas (Hata ayıklama için)
-                    # print(f"✅ Eşleşti: PDF[{tm_name_pdf}] -> HARİTA[{real_name}] ({match_type})")
+                # Gerilim Seviyesi
+                voltage = detect_voltage(tm_name_pdf)
+
+                entry = {
+                    "name": real_name if real_name else norm_pdf,  # Harita ismi (yoksa normalize isim)
+                    "teias_name": tm_name_pdf,  # Orijinal PDF ismi
+                    "free_mw": capacity_val,
+                    "total_mw": 100,  # Tahmini toplam
+                    "status": status,
+                    "voltage": voltage,
+                    "matched": True if real_name else False
+                }
+
+                matched_data.append(entry)
+                total_mw += capacity_val
+                if real_name: match_count += 1
 
     # 3. KAYDET
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+
     output = {
-        "updated_at": "2026-02-12",
+        "updated_at": now_str,
         "source": "TEİAŞ PDF",
         "total_free": f"{total_mw:,.2f} MW",
         "substations": matched_data
@@ -158,8 +185,12 @@ def run_import():
     with open(OUTPUT_JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=4, ensure_ascii=False)
 
-    print(f"\n✅ Veritabanı Güncellendi!")
-    print(f"🔗 {match_count} trafo eşleştirildi.")
+    print("-" * 40)
+    print(f"✅ İŞLEM TAMAMLANDI")
+    print(f"📅 Güncelleme Zamanı: {now_str}")
+    print(f"📄 PDF'ten Okunan: {len(matched_data)} Merkez")
+    print(f"🔗 Harita ile Eşleşen: {match_count} Merkez")
+    print(f"💾 Dosya: {OUTPUT_JSON_PATH}")
 
 
 if __name__ == "__main__":

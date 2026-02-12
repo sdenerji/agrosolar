@@ -1,4 +1,4 @@
-#Kayıt, giriş, şifreleme ve şifre değiştirme işlemleri.
+# Kayıt, giriş, şifreleme ve şifre değiştirme işlemleri.
 import hashlib
 from datetime import datetime
 import traceback
@@ -28,7 +28,7 @@ def sign_up_user(username, email, password):
         return False, "Bu kullanıcı adı zaten kullanımda."
 
     try:
-        # 2. Auth Kaydı
+        # 2. Auth Kaydı (Supabase Auth)
         auth_response = supabase.auth.sign_up({
             "email": email,
             "password": password,
@@ -48,7 +48,7 @@ def sign_up_user(username, email, password):
                 "created_at": datetime.now().isoformat()
             }
 
-            # 3. Tabloya Kayıt
+            # 3. Tabloya Kayıt (Public Users Tablosu)
             supabase.table("users").insert(data).execute()
             return True, "Kayıt başarıyla oluşturuldu! Giriş yapabilirsiniz."
         else:
@@ -66,21 +66,27 @@ def sign_up_user(username, email, password):
         return False, f"Sistemsel Hata: {err_msg}"
 
 
-# --- GİRİŞ DOĞRULAMA ---
+# --- GİRİŞ DOĞRULAMA (DÜZELTİLDİ) ---
 def verify_user_login(username, password):
-    # DİKKAT: Burada döngüsel import olmaması için user_service yerine
-    # veriyi doğrudan çekiyoruz veya user_service'i fonksiyon içinde import ediyoruz.
-    # En temizi doğrudan çekmektir:
+    """
+    Kullanıcı adı ve şifreyi doğrular.
+    Başarılı ise user objesini döndürür.
+    """
     supabase = get_supabase()
+    # Users tablosundan kullanıcıyı bul
     res = supabase.table("users").select("*").eq("username", username).execute()
 
     if res.data:
         user = res.data[0]
-        stored_hash = user.get("password")
-        if not stored_password_hash:
+        stored_hash = user.get("password")  # DB'deki şifre
+
+        # HATA DÜZELTİLDİ: 'stored_password_hash' yerine 'stored_hash' kullanıldı.
+        if not stored_hash:
             return None
-        if check_hashes(password, stored_password_hash):
-            return user
+
+        if check_hashes(password, stored_hash):
+            return user  # Şifre doğru, kullanıcıyı döndür
+
     return None
 
 

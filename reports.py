@@ -1,122 +1,221 @@
 from fpdf import FPDF
-import requests
-from PIL import Image, ImageDraw
-import io
 import os
+import requests
 from datetime import datetime
+from PIL import Image, ImageDraw
+import matplotlib.pyplot as plt
+import matplotlib
+import numpy as np
 
-def tr_to_en(text):
-    """Türkçe karakterleri ASCII muadillerine çevirir."""
-    mapping = str.maketrans("ğĞüÜşŞİıöÖçÇ", "gGuUsSiioOcc")
-    return str(text).translate(mapping)
-
-# 1. Fonksiyon tanımına 'projection_data' ve 'earnings_graph' eklediğinizden emin olun
-def generate_full_report(lat, lon, rakim, egim, baki, kw_power, kwh, gelir, maliyet, roi, unit_cost,
-                         username, user_role, map_type, earnings_graph, horizon_graph_path,
-                         projection_data, shading_metrics):
-    """Harita görselini hazırlar ve tüm verileri PDF oluşturucuya aktarır."""
-    map_path = "temp_map.png"
-    offset = 0.004
-    bbox = f"{lon - offset},{lat - offset},{lon + offset},{lat + offset}"
-
-    # Harita Tipi Seçimi
-    base_url = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export" if "Uydu" in map_type else "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/export"
-
-    try:
-        # SSL hatasını aşmak için verify=False eklenmiştir
-        r = requests.get(f"{base_url}?bbox={bbox}&bboxSR=4326&size=800,600&f=image", timeout=15, verify=False)
-        if r.status_code == 200:
-            img = Image.open(io.BytesIO(r.content)).convert("RGB")
-            draw = ImageDraw.Draw(img)
-            cx, cy = img.size[0] / 2, img.size[1] / 2
-            draw.ellipse((cx - 15, cy - 35, cx + 15, cy - 5), fill="#E74C3C", outline="white", width=3)
-            draw.polygon([(cx - 8, cy - 10), (cx + 8, cy - 10), (cx, cy + 10)], fill="#E74C3C")
-            img.save(map_path)
-        else:
-            map_path = None
-    except:
-        map_path = None
-
-    return create_pdf(
-        lat, lon, rakim, egim, baki, kw_power, kwh, gelir, maliyet, roi, unit_cost,
-        username, user_role, map_path,
-        earnings_graph,
-        horizon_graph_path,  # 16. parametre olarak eklendi
-        projection_data, shading_metrics  # 17. parametre olarak eklendi
-    )
+# Sunucu taraflı render için 'Agg' backend kullanımı
+matplotlib.use('Agg')
 
 
-def create_pdf(lat, lon, rakim, egim, baki, kw_power, kwh, gelir, maliyet, roi, unit_cost,
-               username, user_role, map_path, earnings_graph, horizon_earnings_graph,
-               projection_data, shading_metrics):
-    pdf = FPDF()
-    pdf.set_auto_page_break(auto=False)
+def clean_text(text):
+    """PDF uyumluluğu için Türkçe karakterleri temizler."""
+    map_tr = str.maketrans("ğĞüÜşŞİıöÖçÇ", "gGuUsSiioOcc")
+    return str(text).translate(map_tr)
 
-    # --- SAYFA 1: ANALİZ ÖZETİ ---
+
+def generate_monthly_plot(monthly_data):
+    """Aylık üretim verisinden Bar Chart oluşturur."""
+    if not monthly_data: return None
+
+    months = [d['month'] for d in monthly_data]
+    production = [d['production'] for d in monthly_data]
+
+    plt.figure(figsize=(10, 3.5))
+    bars = plt.bar(months, production, color='#f39c12', edgecolor='#d35400', width=0.6)
+
+    plt.title("Aylik Ortalama Uretim Dagilimi (kWh/kWp)", fontsize=10, fontweight='bold')
+    plt.xlabel("Aylar", fontsize=8)
+    plt.ylabel("Uretim (kWh)", fontsize=8)
+    plt.grid(axis='y', linestyle='--', alpha=0.3)
+    plt.xticks(months, fontsize=8)
+    plt.yticks(fontsize=8)
+
+    for bar in bars:
+        height = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width() / 2., height,
+                 f'{int(height)}',
+                 ha='center', va='bottom', fontsize=7)
+
+    path = "temp_monthly_plot.png"
+    plt.savefig(path, bbox_inches='tight', dpi=100)
+    plt.close()
+    return path
+
+
+class SD_Report(FPDF):
+    def __init__(self):
+        super().__init__()
+        self.report_id = ""
+
+    def header(self):
+        self.set_fill_color(28, 90, 186)
+        self.rect(0, 0, 210, 35, 'F')
+        self.set_font('Arial', 'B', 18)
+        self.set_text_color(255, 255, 255)
+        self.cell(0, 15, clean_text("GES TEKNIK VE FINANSAL FIZIBILITE RAPORU"), ln=True, align='C')
+        self.set_font('Arial', '', 9)
+        self.cell(0, 5, clean_text(f"Rapor No: {self.report_id} | Tarih: {datetime.now().strftime('%d/%m/%Y')}"),
+                  ln=True, align='C')
+        self.ln(10)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        self.set_text_color(128, 128, 128)
+        self.cell(0, 10, f"Sayfa {self.page_no()} | SD Enerji Analiz Platformu - Gizli ve Teknik Dokumandir", 0, 0, 'C')
+
+
+def generate_full_report(d):
+    pdf = SD_Report()
+
+    # ID OLUŞTURMA
+    username_tag = clean_text(d.get('username', 'MISAFIR')).upper()
+    timestamp_tag = datetime.now().strftime('%Y%m%d-%H%M')
+    pdf.report_id = f"{username_tag}-{timestamp_tag}"
+
+    pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
-    pdf.set_font("Arial", 'B', 18)
-    pdf.set_text_color(231, 76, 60)
-    pdf.cell(0, 15, "SD ENERJI - AGROSOLAR ANALIZ RAPORU", ln=True, align='C')
 
-    # Harita (Sadece 1 adet ve sabit konum)
-    if map_path and os.path.exists(map_path):
-        pdf.image(map_path, x=15, y=35, w=180, h=85)
-
-    # Teknik Tablo (Haritanın hemen altına sabitlendi - Bölünmez)
-    pdf.set_y(125)
-    pdf.set_font("Arial", 'B', 12)
+    # --- 1. YONETICI OZETI ---
+    pdf.set_font('Arial', 'B', 12)
+    pdf.set_text_color(28, 90, 186)
+    pdf.cell(0, 10, clean_text("1. YONETICI OZETI (EXECUTIVE SUMMARY)"), ln=True)
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(180, 10, " TEKNIK VE FINANSAL ANALIZ SONUCLARI", border=1, ln=1, align='C')
+    pdf.set_font('Arial', '', 10)
 
-    pdf.set_font("Arial", '', 10)
-    rows = [
-        ["Konum", f"{lat:.5f}/{lon:.5f}", "Kurulu Guc", f"{kw_power} kWp"],
-        ["Rakim", f"{rakim} m", "Uretim (1. Yil)", f"{int(kwh):,} kWh".replace(",", ".")],
-        ["Egim", f"%{egim}", "Amortisman", f"{roi} Yil"],
-        ["Baki", f"{baki}", "Birim Maliyet", f"{unit_cost:.3f} $/kWh"],
-        ["Maks. Engel", shading_metrics[0], "Golge Kayip Kat.", f"{shading_metrics[1]}"]  # Yeni Satır
+    summary_text = (
+        f"Bu rapor, koordinatlari belirtilen sahada kurulmasi planlanan {d['kwp']} kWp gucundeki "
+        "Gunes Enerji Santrali'nin teknik ve finansal analizini icermektedir. Yapilan hesaplamalar, "
+        "bolgesel meteorolojik veriler ve secilen yuksek verimli ekipmanlar baz alinarak olusturulmustur."
+    )
+    pdf.multi_cell(0, 6, clean_text(summary_text))
+    pdf.ln(5)
+
+    pdf.set_fill_color(245, 245, 245)
+    metrics = [
+        ["Toplam Kurulu Guc", f"{d['kwp']} kWp", "Yillik Tahmini Uretim", f"{d['kwh']:,} kWh"],
+        ["Yatirim Maliyeti (CAPEX)", f"{d['cost']:,} $", "Geri Donus Suresi (ROI)", f"{d['roi']} Yil"],
+        ["Ic Verim Orani (IRR)", f"%{d['irr']}", "Net Bugunku Deger (NPV)", f"{d['npv']:,} $"],
+        ["LCOE (Birim Maliyet)", f"{round(d['cost'] / (d['kwh'] * 20), 3)} $/kWh", "Karbon Tasarrufu",
+         f"{d['co2']} Ton/Yil"]
     ]
-    for r in rows:
-        pdf.cell(45, 10, r[0], border=1);
-        pdf.cell(45, 10, r[1], border=1)
-        pdf.cell(45, 10, r[2], border=1);
-        pdf.cell(45, 10, r[3], border=1, ln=1)
 
-    # --- SAYFA 2: MÜHENDİSLİK GRAFİKLERİ ---
-    pdf.add_page()
-    # 1. Ufuk Gölge Grafiği (Yeni eklendi)
-    if horizon_earnings_graph and os.path.exists(horizon_earnings_graph):
-        pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 10, "UFUK VE GOLGE ANALIZI", ln=True, align='C')
-        pdf.image(horizon_earnings_graph, x=15, y=25, w=180)
+    for row in metrics:
+        pdf.set_font('Arial', 'B', 9)
+        pdf.cell(45, 8, clean_text(row[0]), 1, 0, 'L', fill=True)
+        pdf.set_font('Arial', '', 9)
+        pdf.cell(50, 8, clean_text(row[1]), 1, 0, 'C')
+        pdf.set_font('Arial', 'B', 9)
+        pdf.cell(45, 8, clean_text(row[2]), 1, 0, 'L', fill=True)
+        pdf.set_font('Arial', '', 9)
+        pdf.cell(50, 8, clean_text(row[3]), 1, 1, 'C')
 
-    # 2. Yatırım Getiri Grafiği
-    if earnings_graph and os.path.exists(earnings_graph):
-        pdf.set_y(120)
-        pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 10, "25 YILLIK FINANSAL PROJEKSIYON", ln=True, align='C')
-        pdf.image(earnings_graph, x=15, y=135, w=180)
+    # --- 2. TEKNIK EKIPMAN VE SAHA ANALIZI ---
+    pdf.ln(10)
+    pdf.set_font('Arial', 'B', 12)
+    pdf.set_text_color(28, 90, 186)
+    pdf.cell(0, 10, clean_text("2. TEKNIK EKIPMAN VE SAHA ANALIZI"), ln=True)
+    pdf.set_text_color(0, 0, 0)
 
-    # --- SAYFA 3: DETAYLI TABLO ---
-    if projection_data:
-        pdf.add_page()
-        pdf.set_font("Arial", 'B', 14)
-        pdf.set_text_color(255,255,255)
-        pdf.cell(0, 10, "YILLARA GORE KAZANC TABLOSU", ln=True, align='C')
+    layout_info = d.get('layout_data', {})
+    pdf.set_font('Arial', '', 10)
+    pdf.cell(0, 7, clean_text(f"- Panel Modeli: {d['panel_model']} (Bi-Facial Yuksek Verim)"), ln=True)
+    pdf.cell(0, 7, clean_text(f"- Toplam Panel Adedi: {layout_info.get('count', 0)} Adet"), ln=True)
+    pdf.cell(0, 7, clean_text(f"- Inverter Modeli: {d['inv_model']}"), ln=True)
+    pdf.cell(0, 7, clean_text(f"- Saha Egimi: %{d['slope']} | Bakisi: {d['aspect']}"), ln=True)
+
+    # --- HARİTA VE PARSEL BİLGİSİ ---
+    map_path = "temp_report_map.png"
+    if os.path.exists(map_path):
         pdf.ln(5)
-        headers = ["YIL", "URETIM (kWh)", "YILLIK GELIR ($)", "KUMULATIF KAR ($)"]
-        w = [25, 50, 50, 55]
-        for i, h in enumerate(headers):
-            pdf.cell(w[i], 10, h, border=1, align='C', fill=True)
-        pdf.ln()
+        # 1. Önce Resmi Bas
+        pdf.image(map_path, x=15, w=180)
+        pdf.ln(2)
 
-        pdf.set_text_color(0, 0, 0)
-        pdf.set_font("Arial", '', 10)
-        for r in projection_data:
-            pdf.cell(w[0], 9, f"{r['yil']}. Yil", border=1, align='C')
-            pdf.cell(w[1], 9, f"{r['uretim']:,}".replace(",", "."), border=1, align='C')
-            pdf.cell(w[2], 9, f"$ {r['gelir']:,}".replace(",", "."), border=1, align='C')
-            pdf.cell(w[3], 9, f"$ {r['net']:,}".replace(",", "."), border=1, align='C')
-            pdf.ln()
+        # 2. Sonra Bilgiyi Bas (DÜZELTME BURADA)
+        loc = d.get('location_data', {})
+        if loc:
+            pdf.set_fill_color(240, 240, 240)
+            pdf.set_font('Arial', 'B', 9)
+            info_str = f"TAPU KAYDI: {loc.get('il', '-')} Ili, {loc.get('ilce', '-')} Ilcesi, {loc.get('mahalle', '-')} Mh. | ADA: {loc.get('ada', '-')} | PARSEL: {loc.get('parsel', '-')}"
+            pdf.cell(0, 8, clean_text(info_str), ln=True, align='C', fill=True)
+        pdf.ln(5)
 
-    return pdf.output(dest='S').encode('latin-1')
+    if d.get('monthly_data'):
+        monthly_chart = generate_monthly_plot(d['monthly_data'])
+        if monthly_chart and os.path.exists(monthly_chart):
+            pdf.image(monthly_chart, x=15, w=180)
+
+            # --- YORUM ALANI ---
+            if d.get('monthly_comment'):
+                pdf.ln(2)
+                pdf.set_font('Arial', 'I', 9)
+                pdf.multi_cell(0, 5, clean_text(f"Analiz: {d['monthly_comment']}"))
+            pdf.ln(5)
+
+    # --- 3. UFUK ANALIZI ---
+    pdf.add_page()
+    pdf.set_font('Arial', 'B', 12)
+    pdf.set_text_color(28, 90, 186)
+    pdf.cell(0, 10, clean_text("3. UFUK VE GOLGE ANALIZI (PVGIS)"), ln=True)
+    pdf.set_text_color(0, 0, 0)
+
+    horizon_path = "temp_horizon_plot.png"
+    if os.path.exists(horizon_path):
+        pdf.image(horizon_path, x=15, w=180)
+        # --- YORUM ALANI ---
+        if d.get('shading_comment'):
+            pdf.ln(2)
+            pdf.set_font('Arial', 'I', 9)
+            pdf.multi_cell(0, 5, clean_text(f"Teknik Yorum: {d['shading_comment']}"))
+        else:
+            pdf.multi_cell(0, 5, clean_text("Yukaridaki grafik, sahanin topografik engellerini gostermektedir."))
+
+    # --- 4. FINANSAL ANALIZ ---
+    pdf.ln(10)
+    pdf.set_font('Arial', 'B', 12)
+    pdf.set_text_color(28, 90, 186)
+    pdf.cell(0, 10, clean_text("4. FINANSAL PROJEKSIYON VE NAKIT AKISI"), ln=True)
+    pdf.set_text_color(0, 0, 0)
+
+    graph_path = d.get('graph_path')
+    if graph_path and os.path.exists(graph_path):
+        pdf.image(graph_path, x=15, w=180)
+        # --- YORUM ALANI ---
+        if d.get('cash_comment'):
+            pdf.ln(2)
+            pdf.set_font('Arial', 'I', 9)
+            pdf.multi_cell(0, 5, clean_text(f"Finansal Ozet: {d['cash_comment']}"))
+        pdf.ln(5)
+
+    pdf.set_font('Arial', 'B', 8)
+    pdf.set_fill_color(28, 90, 186)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(15, 8, "YIL", 1, 0, 'C', fill=True)
+    pdf.cell(35, 8, "URETIM", 1, 0, 'C', fill=True)
+    pdf.cell(35, 8, "GELIR ($)", 1, 0, 'C', fill=True)
+    pdf.cell(35, 8, "OPEX", 1, 0, 'C', fill=True)
+    pdf.cell(35, 8, "NET NAKIT", 1, 0, 'C', fill=True)
+    pdf.cell(35, 8, "KUMULATIF", 1, 1, 'C', fill=True)
+
+    pdf.set_font('Arial', '', 8)
+    pdf.set_text_color(0, 0, 0)
+    for row in d['cash_flow'][:25]:
+        pdf.cell(15, 6, str(row['yil']), 1, 0, 'C')
+        pdf.cell(35, 6, f"{row['uretim']:,}", 1, 0, 'R')
+        pdf.cell(35, 6, f"{row['gelir']:,}", 1, 0, 'R')
+        pdf.cell(35, 6, f"{row['gider']:,}", 1, 0, 'R')
+        pdf.cell(35, 6, f"{row['net']:,}", 1, 0, 'R')
+        pdf.cell(35, 6, f"{row['kumulatif']:,}", 1, 1, 'R')
+
+    pdf.ln(10)
+    pdf.set_fill_color(232, 245, 233)
+    pdf.set_font('Arial', 'B', 11)
+    pdf.cell(0, 12, clean_text(f"ESG ETKISI: Bu tesis yillik {d['trees']} agacin karbon emilimine denk katki saglar."),
+             0, 1, 'C', fill=True)
+
+    return pdf.output(dest='S').encode('latin-1', errors='replace')

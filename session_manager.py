@@ -1,51 +1,35 @@
 import streamlit as st
-import uuid
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from db_base import get_supabase
+from streamlit import runtime
+from streamlit.runtime.scriptrunner import get_script_run_ctx
 
 # AYAR: Oturum kaç saniye hareketsiz kalırsa kapansın? (2 Saat = 7200 sn)
 SESSION_TIMEOUT_SEC = 7200
 
 
-def get_device_uuid():
-    """Tarayıcı sekmesi için benzersiz ID oluşturur."""
-    if 'my_session_id' not in st.session_state:
-        st.session_state.my_session_id = str(uuid.uuid4())
-    return st.session_state.my_session_id
-
-
-def update_user_session_id(user_id, new_session_id):
+def get_remote_ip():
     """
-    Veritabanındaki aktif session ID'yi günceller.
-    HEDEF SÜTUN: current_session_id
+    Kullanıcının IP adresini tespit eder.
+    Yerel çalışmada (localhost) bazen IP görünmeyebilir, bu durumda varsayılan değer döner.
     """
-    supabase = get_supabase()
     try:
-        # Debug: Hata alırsak görelim diye execute() sonucunu alıyoruz
-        data = supabase.table("users").update({"current_session_id": new_session_id}).eq("id", user_id).execute()
-        return True, None
-    except Exception as e:
-        return False, str(e)
+        ctx = get_script_run_ctx()
+        if ctx is None: return "0.0.0.0"
 
-
-def get_db_session_id(user_id):
-    """
-    Veritabanından kullanıcının son session ID'sini çeker.
-    HEDEF SÜTUN: current_session_id
-    """
-    supabase = get_supabase()
-    try:
-        res = supabase.table("users").select("current_session_id").eq("id", user_id).execute()
-        if res.data and len(res.data) > 0:
-            return res.data[0].get("current_session_id")
-    except Exception as e:
-        print(f"Session Read Hatası: {e}")
-    return None
+        session_info = runtime.get_instance().get_client(ctx.session_id)
+        if session_info:
+            return session_info.request.remote_ip
+    except Exception:
+        return "0.0.0.0"
+    return "0.0.0.0"
 
 
 def check_timeout():
-    """Kullanıcı belirli bir süre işlem yapmadıysa oturumu kapatır."""
+    """
+    İstemci tarafında (Streamlit Session State) zaman aşımı kontrolü.
+    """
     if "last_active" not in st.session_state:
         st.session_state.last_active = time.time()
         return
@@ -53,13 +37,12 @@ def check_timeout():
     idle_time = time.time() - st.session_state.last_active
 
     if idle_time > SESSION_TIMEOUT_SEC:
-        st.warning("⏳ 2 saatlik hareketsizlik nedeniyle oturumunuz sonlandırıldı.")
+        st.warning("⏳ Uzun süre işlem yapmadığınız için oturumunuz sonlandırıldı.")
         try:
             get_supabase().auth.sign_out()
         except:
             pass
         st.session_state.logged_in = False
-        st.session_state.user_role = "Free"
         st.session_state.username = "Misafir"
         st.session_state.user_id = None
         time.sleep(2)
@@ -72,62 +55,120 @@ def check_timeout():
 def handle_session_limit():
     """
     MAIN.PY BAŞINDA ÇAĞRILIR:
-    Oturum çakışması kontrolü.
+    active_sessions tablosu üzerinden IP tabanlı tek oturum kontrolü yapar.
     """
-    # Giriş yoksa işlem yapma
+    # 1. Giriş yoksa işlem yapma
     if not st.session_state.get("logged_in", False):
         return
 
     user_id = st.session_state.get("user_id")
-    if not user_id:
-        return
+    if not user_id: return
 
-    # Önce zaman aşımı kontrolü
+    # 2. İstemci tarafı zaman aşımı kontrolü
     check_timeout()
 
-    current_uuid = get_device_uuid()
-    db_session_id = get_db_session_id(user_id)
+    # 3. IP ve Veritabanı Kontrolü
+    current_ip = get_remote_ip()
+    supabase = get_supabase()
+    now = datetime.utcnow()
 
-    # Durum 1: DB boşsa (veya yeni kayıt) -> Yaz
-    if not db_session_id:
-        success, err = update_user_session_id(user_id, current_uuid)
-        if not success:
-            # Burası çalışırsa sütun adında veya yetkide sorun var demektir
-            st.error(f"⚠️ Oturum Kayıt Hatası: {err}")
+    try:
+        # DB'deki aktif oturumu sorgula
+        response = supabase.table('active_sessions').select("*").eq('user_id', user_id).execute()
+        existing_session = response.data[0] if response.data else None
 
-    # Durum 2: ÇAKIŞMA! (DB'deki ID benimkinden farklı)
-    elif db_session_id != current_uuid:
-        st.error(f"⚠️ DİKKAT: Hesabınız başka bir yerde açık görünüyor.")
+        if existing_session:
+            db_ip = existing_session.get('ip_address')
+            last_active_str = existing_session.get('last_active')
 
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🚪 Çıkış Yap"):
-                try:
-                    get_supabase().auth.sign_out()
-                except:
-                    pass
-                st.session_state.logged_in = False
-                st.session_state.username = "Misafir"
-                st.rerun()
+            # Zaman farkı hesabı (DB tarafında bayat oturum kontrolü için)
+            try:
+                # Supabase formatı genelde: 2023-10-10T15:30:00+00:00
+                last_active_dt = datetime.fromisoformat(last_active_str.replace('Z', '+00:00'))
+                if last_active_dt.tzinfo:
+                    last_active_dt = last_active_dt.replace(tzinfo=None)
+                time_diff = now - last_active_dt
+            except:
+                time_diff = timedelta(seconds=0)
 
-        with col2:
-            if st.button("🛡️ Oturumu Devral (GİRİŞ YAP)", type="primary"):
-                # Zorla benim ID'mi yaz
-                success, err = update_user_session_id(user_id, current_uuid)
+            # --- SENARYO A: IP AYNI (Sayfa Yenileme / F5) ---
+            # IP değişmediyse sorun yok, süreyi güncelle ve devam et.
+            if db_ip == current_ip:
+                supabase.table('active_sessions').update({
+                    'last_active': now.isoformat()
+                }).eq('user_id', user_id).execute()
+                return
 
-                if success:
-                    st.success("✅ Yetki alındı! Sayfa yenileniyor...")
+            # --- SENARYO B: IP FARKLI ama Oturum Çok Eski (>60 dk) ---
+            # Kullanıcı başka yerde kapatmayı unutmuş ama 1 saattir işlem yapmamış.
+            # Otomatik devral.
+            elif time_diff > timedelta(minutes=60):
+                supabase.table('active_sessions').update({
+                    'ip_address': current_ip,
+                    'last_active': now.isoformat()
+                }).eq('user_id', user_id).execute()
+                return
+
+            # --- SENARYO C: IP FARKLI ve Oturum Taze (ÇAKIŞMA!) ---
+            else:
+                st.error(f"⚠️ **GÜVENLİK UYARISI:** Hesabınız şu an başka bir cihazda ({db_ip}) açık görünüyor.")
+                st.warning("Veri güvenliği nedeniyle aynı anda sadece tek cihazdan giriş yapabilirsiniz.")
+
+                col1, col2 = st.columns(2)
+
+                # Seçenek 1: Çıkış Yap
+                if col1.button("🚪 Buradan Çıkış Yap"):
+                    st.session_state.logged_in = False
+                    st.session_state.page = "analiz"
+                    st.rerun()
+
+                # Seçenek 2: Devral
+                if col2.button("🚫 Diğerini Kapat ve Buradan Gir", type="primary"):
+                    # Diğer IP'yi sil, benim IP'mi yaz
+                    supabase.table('active_sessions').update({
+                        'ip_address': current_ip,
+                        'last_active': now.isoformat()
+                    }).eq('user_id', user_id).execute()
+
+                    st.success("Oturum bu cihaza taşındı! Sayfa yenileniyor...")
                     time.sleep(1)
                     st.rerun()
-                else:
-                    st.error(f"❌ Devralma Başarısız! Hata: {err}")
-                    st.info("Lütfen Supabase tablosunda 'current_session_id' sütunu olduğundan emin olun.")
 
-        st.stop()
+                st.stop()  # Uygulamanın geri kalanını yükleme
+
+        else:
+            # 4. Hiç kayıt yoksa (İlk Giriş) -> Yeni kayıt oluştur
+            new_data = {
+                "user_id": user_id,
+                "ip_address": current_ip,
+                "last_active": now.isoformat()
+            }
+            # upsert: varsa güncelle, yoksa ekle (User ID unique olduğu için güvenli)
+            supabase.table('active_sessions').upsert(new_data, on_conflict="user_id").execute()
+
+    except Exception as e:
+        # Veritabanı hatası olursa (örneğin internet koptuysa) kullanıcıyı engellememek için
+        # log basıp devam edebiliriz veya hata gösterebiliriz.
+        print(f"Session Manager Hatası: {e}")
+        pass
 
 
 def register_new_session_login(user_id):
-    """LOGIN OLURKEN ÇAĞRILIR"""
+    """
+    LOGIN OLURKEN ÇAĞRILIR (Auth Service içinden)
+    Kullanıcı şifresini girdiğinde active_sessions tablosunu günceller.
+    """
     st.session_state.last_active = time.time()
-    new_uuid = get_device_uuid()
-    update_user_session_id(user_id, new_uuid)
+    current_ip = get_remote_ip()
+    now = datetime.utcnow().isoformat()
+    supabase = get_supabase()
+
+    new_data = {
+        "user_id": user_id,
+        "ip_address": current_ip,
+        "last_active": now
+    }
+    try:
+        supabase.table('active_sessions').upsert(new_data, on_conflict="user_id").execute()
+    except Exception as e:
+        print(f"Login Register Hatası: {e}")
