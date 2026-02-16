@@ -76,15 +76,6 @@ if "payment_status" in st.query_params:
             st.session_state.page = "profil"
             st.rerun()
 
-hide_header_footer()
-
-# --- PAYTR DÖNÜŞ KONTROLÜ (Webhook Yakalayıcı) ---
-if "payment_status" in st.query_params:
-    status = st.query_params["payment_status"]
-    if status == "success":
-        # Kullanıcıyı direkt profil sayfasına yönlendirip konfetileri patlatıyoruz
-        st.session_state.page = 'profil'
-        st.rerun()
 
 # DEFAULT DEĞERLER
 if 'page' not in st.session_state: st.session_state.page = 'analiz'
