@@ -121,4 +121,4 @@ def paytr_callback():
 
 if __name__ == '__main__':
     # Streamlit 8501'de çalışıyor, bunu 5000'de çalıştıralım
-    app.run(host='0.0.0.0', port=80)
+    app.run(host='0.0.0.0', port=5000)
