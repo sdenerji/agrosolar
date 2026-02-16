@@ -73,6 +73,9 @@ def show_profile_page():
             st.balloons()
             st.success("✅ Ödeme Başarıyla Alındı! İşleminiz tamamlandı.")
             st.info("ℹ️ Güvenlik gereği lütfen sisteme tekrar giriş yapınız.")
+            if st.button("🔑 Şimdi Giriş Yap", use_container_width=True):
+                st.session_state.page = "login"
+                st.rerun()
         elif status == "fail":
             st.error("❌ Ödeme işlemi başarısız oldu veya iptal edildi.")
 
