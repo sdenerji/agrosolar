@@ -64,17 +64,17 @@ matplotlib.use('Agg')
 # --------------------------------------------------------------------------
 # AYARLAR VE OTURUM
 # --------------------------------------------------------------------------
-st.set_page_config(
-    page_title="SD Enerji Analiz Platformu",
-    layout="wide",
-    page_icon="⚡",
-    initial_sidebar_state="auto"  # 'expanded' yerine 'auto' yaptık
-)
+st.set_page_config(page_title="SD Enerji", layout="wide")
+hide_header_footer()
 
-if "payment_status" in st.query_params and st.session_state.get("page") != 'profil':
+# --- PAYTR DÖNÜŞ KONTROLÜ (SONSUZ DÖNGÜ ÖNLEYİCİ) ---
+# Mantık: URL'de 'payment_status' varsa VE biz zaten profilde değilsek yönlendir.
+# Eğer zaten 'profil' sayfasındaysak sakın rerun() yapma!
+if "payment_status" in st.query_params:
     if st.query_params["payment_status"] == "success":
-        st.session_state.page = 'profil'
-        st.rerun()
+        if st.session_state.get("page") != "profil":
+            st.session_state.page = "profil"
+            st.rerun()
 
 hide_header_footer()
 
