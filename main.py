@@ -72,6 +72,14 @@ st.set_page_config(
 )
 hide_header_footer()
 
+# --- PAYTR DÖNÜŞ KONTROLÜ (Webhook Yakalayıcı) ---
+if "payment_status" in st.query_params:
+    status = st.query_params["payment_status"]
+    if status == "success":
+        # Kullanıcıyı direkt profil sayfasına yönlendirip konfetileri patlatıyoruz
+        st.session_state.page = 'profil'
+        st.rerun()
+
 # DEFAULT DEĞERLER
 if 'page' not in st.session_state: st.session_state.page = 'analiz'
 if 'lat' not in st.session_state or st.session_state.lat == 0: st.session_state.lat = 40.5850
@@ -235,7 +243,12 @@ else:
         if st.button("🚀 3D Arazi Analizi", use_container_width=True):
             st.session_state.page = '3d_analiz';
             st.rerun()
-
+        if st.session_state.get("user_role") == "Free":
+            st.divider()
+            st.info("🚀 Daha fazla özellik keşfedin!")
+            if st.button("💎 Paketleri İncele & Yükselt", type="primary", use_container_width=True):
+                st.session_state.page = 'profil'
+                st.rerun()
         try:
             admin_email = st.secrets["general"]["admin_email"]
         except:
