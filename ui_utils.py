@@ -8,11 +8,13 @@ def hide_header_footer():
     """Sidebar yüksekliğini optimize eder ve arayüzü temizler."""
     st.markdown("""
         <style>
-        [data-testid="stSidebarUserContent"] { padding-top: 0.5rem !important; }
-        [data-testid="stSidebarCollapseButton"], [data-testid="collapsedControl"] { display: none !important; }
-        header, footer { visibility: hidden; height: 0px !important; }
-        [data-testid="stToolbar"] { visibility: hidden !important; }
-        [data-testid="stSidebar"] { min-width: 300px !important; max-width: 300px !important; }
+        /* Sidebar açma-kapama butonunu görünür yap */
+        [data-testid="collapsedControl"] {
+            display: block !important;
+            top: 0.5rem;
+            left: 0.5rem;
+            color: #1c5aba; /* Ok rengini SD Enerji mavisi yapalım */
+        }
         </style>
     """, unsafe_allow_html=True)
 

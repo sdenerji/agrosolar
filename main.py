@@ -64,8 +64,12 @@ matplotlib.use('Agg')
 # --------------------------------------------------------------------------
 # AYARLAR VE OTURUM
 # --------------------------------------------------------------------------
-st.set_page_config(page_title="SD Enerji Analiz Platformu", layout="wide", page_icon="⚡",
-                   initial_sidebar_state="expanded")
+st.set_page_config(
+    page_title="SD Enerji Analiz Platformu",
+    layout="wide",
+    page_icon="⚡",
+    initial_sidebar_state="auto"  # 'expanded' yerine 'auto' yaptık
+)
 hide_header_footer()
 
 # DEFAULT DEĞERLER
