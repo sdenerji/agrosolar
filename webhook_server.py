@@ -59,54 +59,30 @@ def paytr_callback():
             # SD ile başlıyor, son 10 hane timestamp. Arası user_id.
 
             try:
-                # "SD" yi at
-                temp_id = merchant_oid[2:]
-                # Sondaki timestamp'i (yaklaşık 10 hane) atalım.
-                # UUID genellikle 32+ karakterdir. Basitçe timestamp'i kesebiliriz.
-                # Ancak clean_id yapmıştık (- ve _ yok).
-                # En güvenlisi: user_id'yi veritabanında clean haliyle aramak ya da
-                # Eşleşen kullanıcıyı bulmak.
+                # Terminalde gördüğümüz o uzun ID'yi (Clean ID) alıyoruz
+                clean_user_id = merchant_oid[2:-10]
+                print(f"🔍 Kullanıcı ID ile Aranıyor: {clean_user_id}")
 
-                # Basit Yöntem: Veritabanında bu siparişi beklemediğimiz için
-                # user_id'yi ID üzerinden değil, clean_id üzerinden bulmamız gerekebilir.
-                # AMA daha kolayı: Kullanıcı zaten login.
+                # Supabase'de 'id' sütununda bu temizlenmiş ID'yi içeren kullanıcıyı bul
+                # Not: UUID'deki tireler silindiği için 'ilike' (benzerlik) kullanıyoruz
+                user_query = supabase.table("users").select("*").execute()
 
-                # Gelin clean_id'yi bulmaya çalışalım.
-                # Timestamp (son 10 hane) çıkaralım
-                clean_user_id = temp_id[:-10]
+                target_user = None
+                for u in user_query.data:
+                    if u['id'].replace("-", "") == clean_user_id:
+                        target_user = u
+                        break
 
-                print(f"🔍 Kullanıcı Aranıyor (Clean ID): {clean_user_id}")
-
-                # Supabase'de güncelleme yap
-                # Not: clean_id ile tam eşleşme zor olabilir çünkü UUID tirelerini sildik.
-                # Bu yüzden en mantıklısı, kullanıcının 'email'ini metadata olarak PayTR'a gönderip
-                # oradan yakalamaktı ama şu an ID üzerinden gidiyoruz.
-
-                # TRICK: Tüm kullanıcıları çekip ID'sini temizleyip eşleştireceğiz (Performanslı değil ama çalışır)
-                # Ya da PayTR'a gönderirken 'email' parametresini kullandıysak onu alabiliriz.
-                # PayTR 'email' parametresini geri döndürür!
-
-                user_email = data.get('email')
-
-                if user_email:
-                    print(f"📧 Kullanıcı E-Postası Bulundu: {user_email}")
-                    # Kullanıcıyı E-Mail ile bul ve güncelle
-                    # "role" sütununu "Ultra" yapıyoruz (veya paket seçimine göre)
-
-                    # Önce mevcut rolü kontrol et (Opsiyonel)
-                    user_data = supabase.table("users").select("*").eq("email", user_email).execute()
-
-                    if user_data.data:
-                        # GÜNCELLEME ANI
-                        supabase.table("users").update({"role": "Ultra"}).eq("email", user_email).execute()
-                        print(f"✅ KULLANICI YÜKSELTİLDİ: {user_email} -> Ultra")
-                    else:
-                        print("❌ Kullanıcı veritabanında bulunamadı.")
+                if target_user:
+                    user_email = target_user['email']
+                    # GÜNCELLEME ANI
+                    supabase.table("users").update({"role": "Ultra"}).eq("id", target_user['id']).execute()
+                    print(f"✅ KULLANICI YÜKSELTİLDİ: {user_email} -> Ultra")
                 else:
-                    print("❌ PayTR e-posta bilgisi göndermedi.")
+                    print(f"❌ ID ile eşleşen kullanıcı bulunamadı: {clean_user_id}")
 
             except Exception as e:
-                print(f"❌ Veritabanı güncelleme hatası: {e}")
+                print(f"❌ Veritabanı ID eşleştirme hatası: {e}")
 
         else:
             print(f"❌ Ödeme Başarısız. Sipariş: {merchant_oid}")
