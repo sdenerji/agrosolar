@@ -70,6 +70,12 @@ st.set_page_config(
     page_icon="⚡",
     initial_sidebar_state="auto"  # 'expanded' yerine 'auto' yaptık
 )
+
+if "payment_status" in st.query_params and st.session_state.get("page") != 'profil':
+    if st.query_params["payment_status"] == "success":
+        st.session_state.page = 'profil'
+        st.rerun()
+
 hide_header_footer()
 
 # --- PAYTR DÖNÜŞ KONTROLÜ (Webhook Yakalayıcı) ---
