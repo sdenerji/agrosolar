@@ -188,45 +188,41 @@ def show_profile_page():
                     else:
                         st.error(f"Ödeme Başlatılamadı: {token_res.get('reason')}")
 
-    # --- ÖDEME IFRAME ALANI ---
-    if st.session_state.get("show_payment_frame", False) and "paytr_iframe_token" in st.session_state:
-        st.markdown("---")
-        st.markdown("### 🔒 Güvenli Ödeme")
-        col_close, col_space = st.columns([1, 4])
-        with col_close:
-            if st.button("❌ İptal Et / Kapat", type="secondary", use_container_width=True):
+        # --- ÖDEME ALANI (GÜNCELLENDİ: iFrame Yerine Yönlendirme) ---
+        if st.session_state.get("show_payment_frame", False) and "paytr_iframe_token" in st.session_state:
+            st.markdown("---")
+            st.markdown("### 💳 Ödeme İşlemini Tamamlayın")
+
+            st.info("👇 Aşağıdaki butona tıkladığınızda güvenli ödeme sayfasına yönlendirileceksiniz.")
+
+            # PayTR Linki
+            iframe_url = f"https://www.paytr.com/odeme/guvenli/{st.session_state.paytr_iframe_token}"
+
+            # target="_self" diyerek aynı sekmede açılmasını sağlıyoruz (En temiz yöntem)
+            st.markdown(f'''
+                <a href="{iframe_url}" target="_self" style="text-decoration: none;">
+                    <button style="
+                        background-color: #FF4B4B; 
+                        color: white; 
+                        padding: 15px 32px; 
+                        text-align: center; 
+                        text-decoration: none; 
+                        display: inline-block; 
+                        font-size: 16px; 
+                        margin: 4px 2px; 
+                        cursor: pointer; 
+                        border-radius: 8px; 
+                        border: none; 
+                        width: 100%;
+                        font-weight: bold;">
+                        🚀 Güvenli Ödeme Sayfasına Git
+                    </button>
+                </a>
+            ''', unsafe_allow_html=True)
+
+            st.write("")  # Boşluk
+
+            if st.button("❌ Vazgeç / Kapat", type="secondary", use_container_width=True):
                 st.session_state.show_payment_frame = False
-                del st.session_state.paytr_iframe_token
+                if "paytr_iframe_token" in st.session_state: del st.session_state.paytr_iframe_token
                 st.rerun()
-
-        # PayTR iFrame
-        iframe_url = f"https://www.paytr.com/odeme/guvenli/{st.session_state.paytr_iframe_token}"
-        components.iframe(iframe_url, height=750, scrolling=True)
-
-    st.markdown("---")
-
-    # --- ALT BUTONLAR ---
-    c1, c2 = st.columns([1, 2])
-    with c1:
-        if st.button("← Analiz Ekranına Dön", use_container_width=True):
-            st.session_state.page = 'analiz'
-            st.rerun()
-
-    with c2:
-        with st.expander("🔐 Şifre Değiştir"):
-            with st.form("password_change_form"):
-                current_pass = st.text_input("Mevcut Şifre", type="password")
-                new_pass = st.text_input("Yeni Şifre", type="password")
-                confirm_pass = st.text_input("Yeni Şifre (Tekrar)", type="password")
-
-                if st.form_submit_button("Şifreyi Güncelle", type="primary"):
-                    if new_pass != confirm_pass:
-                        st.error("Yeni şifreler eşleşmiyor.")
-                    elif len(new_pass) < 6:
-                        st.error("Şifre en az 6 karakter olmalı.")
-                    else:
-                        success, msg = change_password(username, current_pass, new_pass)
-                        if success:
-                            st.success(msg)
-                        else:
-                            st.error(msg)
