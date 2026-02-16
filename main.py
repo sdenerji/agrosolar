@@ -519,6 +519,7 @@ else:
                                 "username": st.session_state.username,
                                 "panel_model": st.session_state.selected_panel_model,
                                 "inv_model": sel_i_model,
+                                "layout_data": st.session_state.layout_data,
                                 "engineering_note": eng_note_text
                             }
 
