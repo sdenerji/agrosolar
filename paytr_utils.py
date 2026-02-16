@@ -23,7 +23,8 @@ def get_paytr_iframe_token(user_id, email, amount, plan_name):
         return {"status": "error", "reason": "PayTR API anahtarları secrets.toml dosyasında bulunamadı!"}
 
     # 2. Ödeme Parametreleri
-    merchant_oid = f"SD_{user_id}_{int(time.time())}"  # Benzersiz Sipariş No
+    clean_id = str(user_id).replace("-", "").replace("_", "")
+    merchant_oid = f"SD{clean_id}{int(time.time())}"
     email_str = email
     payment_amount = int(amount * 100)  # PayTR kuruş ister (49 TL -> 4900)
 
