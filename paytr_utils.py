@@ -34,7 +34,7 @@ def get_paytr_iframe_token(user_id, email, amount, plan_name):
 
     # Diğer Ayarlar
     # Not: Canlıda request.headers'dan IP almak daha doğrudur, şimdilik sunucu IP'si gider
-    user_ip = "85.85.85.85"
+    user_ip = "91.99.100.41"
     timeout_limit = "300"
     debug_on = "1"  # Canlıda "0" yapın
     test_mode = "1"  # CANLI ÖDEME ALMAK İÇİN BUNU "0" YAPMALISINIZ
@@ -45,8 +45,8 @@ def get_paytr_iframe_token(user_id, email, amount, plan_name):
 
     # Başarılı/Hatalı Dönüş URL'leri (Wix siteniz veya Streamlit app linki)
     # Webhook ile arka planda onaylayacağız ama kullanıcı buraya dönecek.
-    merchant_ok_url = "https://sdenerji-agrosolar.streamlit.app/?payment_status=success"
-    merchant_fail_url = "https://sdenerji-agrosolar.streamlit.app/?payment_status=fail"
+    merchant_ok_url = "https://analiz.sdenerji.com/?payment_status=success"
+    merchant_fail_url = "https://analiz.sdenerji.com/?payment_status=fail"
 
     # 3. Hash Oluşturma (PayTR Güvenlik İmzas)
     # Sıralama: merchant_id + user_ip + merchant_oid + email + payment_amount + user_basket + no_installment + max_installment + currency + test_mode
