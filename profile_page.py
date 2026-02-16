@@ -55,25 +55,55 @@ def confirm_downgrade(target_role, end_date_str):
 def show_profile_page():
     """Kullanıcı profilini, ödeme ve abonelik işlemlerini yönetir."""
 
+    # 1. Verileri Al
     user_id = st.session_state.get("user_id")
     username = st.session_state.get("username", "Misafir")
     email = st.session_state.get("user_email", "E-posta Yok")
     user_role = st.session_state.get("user_role", "Free")
     logged_in = st.session_state.get("logged_in", False)
 
-    if logged_in and user_id is None:
-        st.warning("⚠️ Kullanıcı verileri yüklenemedi. Lütfen tekrar giriş yapınız.")
-        st.stop()
-
     st.title("👤 Hesap ve Abonelik Yönetimi")
 
-    if logged_in:
-        u_id_str = str(user_id) if user_id else "0"
-        display_id = f"{u_id_str[:8]}..." if len(u_id_str) > 8 else u_id_str
-        st.info(f"👤 **Kullanıcı:** {username}  |  📧 **E-Posta:** {email}  |  🆔 **ID:** #{display_id}")
-    else:
-        st.warning("Lütfen giriş yapınız.")
+    # --- KRİTİK EKLENTİ: ÖDEME MESAJINI EN BAŞTA GÖSTER ---
+    # Kullanıcı giriş yapmamış olsa bile (session düşse bile) parayı ödediyse mesajı görsün.
+    query_params = st.query_params
+    if "payment_status" in query_params:
+        status = query_params["payment_status"]
+        if status == "success":
+            st.balloons()
+            st.success("✅ Ödeme Başarıyla Alındı! İşleminiz tamamlandı.")
+            st.info("ℹ️ Güvenlik gereği lütfen sisteme tekrar giriş yapınız.")
+        elif status == "fail":
+            st.error("❌ Ödeme işlemi başarısız oldu veya iptal edildi.")
+
+    # --- UX DÜZELTMESİ: MİSAFİR KULLANICIYI KURTARMA ---
+    if not logged_in:
+        st.warning("⚠️ Abonelik paketlerini yönetmek için giriş yapmalısınız.")
+
+        # Geri Dön Butonu
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            if st.button("← Analiz Ekranına Dön", key="guest_back_btn", type="primary", use_container_width=True):
+                st.session_state.page = 'analiz'
+                st.rerun()
+
+        # Fonksiyonu burada bitiriyoruz ki aşağıya geçip hata vermesin
         return
+
+        # --- LOGGED IN KONTROLÜ (Giriş Yapmışsa Buradan Devam Eder) ---
+    if user_id is None:
+        st.error("⚠️ Kullanıcı verileri yüklenemedi. Lütfen tekrar giriş yapınız.")
+        if st.button("Ana Ekrana Dön"):
+            st.session_state.page = 'analiz'
+            st.rerun()
+        st.stop()
+
+    # --- KULLANICI BİLGİ KARTI ---
+    u_id_str = str(user_id) if user_id else "0"
+    display_id = f"{u_id_str[:8]}..." if len(u_id_str) > 8 else u_id_str
+
+    st.markdown(f"### Hoş Geldiniz, **{username}**")
+    st.info(f"📧 **E-Posta:** {email}  |  🆔 **Müşteri No:** #{display_id}")
 
     st.divider()
 
