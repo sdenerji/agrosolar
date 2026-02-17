@@ -24,6 +24,23 @@ except ImportError:
     def get_paytr_iframe_token(i, e, a, r):
         return {"status": "error", "reason": "Modül Pasif"}
 
+# --- 🚀 SUPABASE IMPORT VE BAĞLANTI (YENİ EKLEME) ---
+try:
+    # Eğer projede merkezi bir supabase istemcisi varsa oradan çekiyoruz
+    # Yoksa doğrudan kütüphaneden import edip config'den okuyacağız
+    from db_base import supabase
+except ImportError:
+    # Eğer db_base yoksa, doğrudan bağlantı kuralım
+    from supabase import create_client
+    import os
+
+    # Not: URL ve KEY genellikle st.secrets içinde veya ortam değişkenlerindedir
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    supabase = create_client(url, key)
+
+
+# ---------------------------------------------------
 
 # --- ONAY PENCERESİ (PAKET DÜŞÜRME) ---
 @st.dialog("⚠️ Paket Değişikliği Onayı")
@@ -63,7 +80,20 @@ def show_profile_page():
     logged_in = st.session_state.get("logged_in", False)
 
     st.title("👤 Hesap ve Abonelik Yönetimi")
+    # --- 🛠️ DİNAMİK FİYAT ÇEKME (YENİ EKLEME) ---
+    try:
+        # Supabase'deki 'paket_fiyat' tablonuzdan verileri çekiyoruz
+        fiyat_verisi = supabase.table("paket_fiyat").select("*").execute()
+        fiyatlar = {item['package_name']: float(item['price']) for item in fiyat_verisi.data}
+    except Exception as e:
+        # Veritabanı bağlantısı koparsa sistem çökmesin diye yedek fiyatlar
+        fiyatlar = {"Pro": 499.0, "Ultra": 1299.0}
+        st.sidebar.error(f"Fiyatlar yüklenirken hata oluştu: {e}")
 
+    # Tablodaki isimlerinize göre değişkenleri atıyoruz
+    PRO_PRICE = fiyatlar.get("Pro", 499.0)
+    ULTRA_PRICE = fiyatlar.get("Ultra", 1299.0)
+    # --------------------------------------------
     # --- KRİTİK EKLENTİ: ÖDEME MESAJINI EN BAŞTA GÖSTER ---
     # Kullanıcı giriş yapmamış olsa bile (session düşse bile) parayı ödediyse mesajı görsün.
     query_params = st.query_params
@@ -160,7 +190,7 @@ def show_profile_page():
             <div>
                 <h4 style="color: #28a745; margin-bottom:0;">PROFESSIONAL</h4>
                 <div style="font-size: 12px; color: #28a745; margin-bottom: 10px;">Bireysel Yatırımcı & Emlakçı</div>
-                <h2 style="font-size: 2.2rem; color: #1e7e34;">499 ₺ <small style="font-size: 1rem;">/ Ay</small></h2>
+                <h2 style="font-size: 2.2rem; color: #1e7e34;">{PRO_PRICE} ₺ <small style="font-size: 1rem;">/ Ay</small></h2>
                 <hr style="border-top: 1px solid #c3e6cb;">
                 <ul style="text-align: left; list-style-type: '✅ '; font-size:13px; padding-left: 20px; color: #155724; margin-top: 15px;">
                     <li style="margin-bottom: 8px;"><b>Profesyonel PDF Rapor</b></li>
@@ -177,9 +207,9 @@ def show_profile_page():
         if user_role == "Pro":
             st.button("Mevcut Paketiniz", disabled=True, key="p2_current", use_container_width=True)
         else:
-            if st.button("🚀 Yükselt (499₺)", key="p2_upgrade", type="primary", use_container_width=True):
+            if st.button(f"🚀 Yükselt ({PRO_PRICE}₺)", key="p2_upgrade", type="primary", use_container_width=True):
                 with st.spinner("💳 Güvenli Ödeme Sayfası Hazırlanıyor..."):
-                    token_res = get_paytr_iframe_token(user_id, email, 499.0, "Pro")
+                    token_res = get_paytr_iframe_token(user_id, email, PRO_PRICE, "Pro")
                     if token_res["status"] == "success":
                         st.session_state.paytr_iframe_token = token_res["token"]
                         st.session_state.show_payment_frame = True
@@ -194,7 +224,7 @@ def show_profile_page():
             <div>
                 <h4 style="color: #ffd700; margin-bottom:0;">ULTRA (KURUMSAL)</h4>
                 <div style="font-size: 12px; color: #aaa; margin-bottom: 10px;">Mühendislik & EPC Firmaları</div>
-                <h2 style="font-size: 2.2rem; color: #ffd700;">1.299 ₺ <small style="font-size: 1rem;">/ Ay</small></h2>
+                <h2 style="font-size: 2.2rem; color: #ffd700;">{ULTRA_PRICE} ₺ <small style="font-size: 1rem;">/ Ay</small></h2>
                 <hr style="border-top: 1px solid #444;">
                 <ul style="text-align: left; list-style-type: '💎 '; font-size:13px; padding-left: 20px; margin-top: 15px;">
                     <li style="margin-bottom: 8px;"><b>Yapay Zeka (Gemini) Yorumu</b></li>
@@ -211,9 +241,10 @@ def show_profile_page():
         if user_role == "Ultra":
             st.button("Mevcut Paketiniz", disabled=True, key="p3_current", use_container_width=True)
         else:
-            if st.button("💎 Ultra'ya Geç (1.299₺)", key="p3_upgrade", type="primary", use_container_width=True):
+            if st.button(f"💎 Ultra'ya Geç ({ULTRA_PRICE}₺)", key="p3_upgrade", type="primary",
+                         use_container_width=True):
                 with st.spinner("💳 Güvenli Ödeme Sayfası Hazırlanıyor..."):
-                    token_res = get_paytr_iframe_token(user_id, email, 1299.0, "Ultra")
+                    token_res = get_paytr_iframe_token(user_id, email, ULTRA_PRICE, "Ultra")
                     if token_res["status"] == "success":
                         st.session_state.paytr_iframe_token = token_res["token"]
                         st.session_state.show_payment_frame = True
