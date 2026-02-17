@@ -4,6 +4,29 @@ import matplotlib.pyplot as plt
 from shapely.geometry import shape, Polygon, MultiPolygon
 import math
 from gis_service import fetch_srtm_elevation_data
+from pyproj import Transformer
+
+
+# --- 🌐 KOORDİNAT DÖNÜŞÜM MOTORU ---
+def transform_points(points, from_epsg, to_epsg):
+    """
+    Kullanıcının yüklediği koordinatları bir sistemden diğerine çevirir.
+
+    """
+    try:
+        transformer = Transformer.from_crs(f"EPSG:{from_epsg}", f"EPSG:{to_epsg}", always_xy=True)
+        # HATA DÜZELTİLDİ: 'transformed' yerine giriş parametresi olan 'points' üzerinden dönülüyor.
+        transformed_data = [transformer.transform(p[0], p[1]) for p in points]
+        return transformed_data
+    except Exception as e:
+        return None
+
+
+def get_utm_zone_epsg(lon, datum="ITRF"):
+    """Boylam değerine göre Türkiye dilim orta boylamı EPSG kodunu bulur."""
+    zone = int((lon / 3) + 1)  # 3 derecelik dilimler
+    if datum == "ITRF": return f"326{zone}"
+    return f"230{zone}"  # ED50
 
 
 # --- 1. COĞRAFİ VE ALAN ANALİZİ ---
