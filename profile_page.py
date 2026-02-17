@@ -100,11 +100,23 @@ def show_profile_page():
             st.balloons()
             st.success("✅ Ödeme Başarıyla Alındı! İşleminiz tamamlandı.")
             st.info("ℹ️ Güvenlik gereği lütfen sisteme tekrar giriş yapınız.")
+
             if st.button("🔑 Şimdi Giriş Yap", use_container_width=True):
+                # 1. Önce URL'deki 'payment_status' parametresini siliyoruz
+                st.query_params.clear()
+
+                # 2. Yönlendirmeyi ayarlıyoruz
                 st.session_state.page = "login"
+
+                # 3. Sayfayı yeniliyoruz (Artık URL temiz olduğu için döngüye girmeyecek)
                 st.rerun()
+
         elif status == "fail":
             st.error("❌ Ödeme işlemi başarısız oldu veya iptal edildi.")
+            # Hata durumunda da temizleyelim ki kullanıcı takılı kalmasın
+            if st.button("Tekrar Dene"):
+                st.query_params.clear()
+                st.rerun()
 
     # --- UX DÜZELTMESİ: MİSAFİR KULLANICIYI KURTARMA ---
     if not logged_in:
