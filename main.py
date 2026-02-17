@@ -22,7 +22,8 @@ from calculations import (
     calculate_slope_aspect, get_solar_potential, transform_points, get_utm_zone_epsg,
     calculate_geodesic_area, calculate_bankability_metrics, generate_horizon_plot,
     generate_earnings_graph, generate_parsel_plot, get_shading_metrics,
-    evaluate_shading_suitability, interpret_shading, get_suitability_badge
+    evaluate_shading_suitability, interpret_shading, get_suitability_badge,
+    smart_fix_coordinates
 )
 from equipment_db import PANEL_LIBRARY, INVERTER_LIBRARY
 from ges_engine import perform_string_analysis
@@ -166,61 +167,78 @@ elif st.session_state.page == 'coord_tool':
     st.title("🌐 Koordinat Dönüşüm İstasyonu (Ultra)")
     st.markdown("---")
 
-    # 🎯 ÇOKLU FORMAT YÜKLEME (JSON, NCN, CSV, TXT)
-    st.info("💡 Projenize ait nokta listesini (NCN, CSV, TXT) veya GeoJSON dosyasını yükleyin.")
+    st.info(
+        "💡 Nokta listesini (NCN, CSV, TXT) veya GeoJSON dosyasını yükleyin. Sistem koordinatlarınızı otomatik tanıyacaktır.")
     ext_file = st.file_uploader("Dosya Yükle", type=["json", "geojson", "ncn", "csv", "txt"])
 
-    col_set1, col_set2 = st.columns(2)
-    with col_set1:
-        input_sys = st.selectbox("Giriş Sistemi:", ["WGS84 (GPS/Coğrafi)", "ITRF (UTM)", "ED50 (UTM)"])
-    with col_set2:
-        target_sys = st.selectbox("Hedef Sistem:", ["ED50 (Klasik/UTM)", "ITRF (Modern/UTM)", "WGS84 (Coğrafi)"])
+    # Otomatik tespit ve bilgilendirme değişkenleri
+    is_detected = False
+    detected_sys = "WGS84 (GPS/Coğrafi)"
+    points_to_convert = []
 
     if ext_file:
         try:
-            points_to_convert = []
             file_name = ext_file.name.lower()
-
-            # --- PARSERLAR ---
             if file_name.endswith(('json', 'geojson')):
                 data = json.load(ext_file)
-                # İlk poligonun koordinatlarını al
                 points_to_convert = data['features'][0]['geometry']['coordinates'][0]
-
             elif file_name.endswith('ncn'):
-                # Netcad NCN Format: Nokta_No Y X Z
                 for line in ext_file.read().decode('utf-8').splitlines():
                     parts = line.split()
-                    if len(parts) >= 3:
-                        points_to_convert.append((float(parts[1]), float(parts[2])))
-
+                    if len(parts) >= 3: points_to_convert.append((float(parts[1]), float(parts[2])))
             elif file_name.endswith(('csv', 'txt')):
-                df_temp = pd.read_csv(ext_file, header=None)  # Varsayılan: Y, X
+                df_temp = pd.read_csv(ext_file, header=None)
                 points_to_convert = df_temp.values.tolist()
 
-            # --- DÖNÜŞÜM İŞLEMİ ---
             if points_to_convert:
-                st.success(f"📂 {len(points_to_convert)} adet nokta başarıyla okundu.")
+                # 🧠 AKILLI DÜZELTME: X-Y tersliğini Türkiye sınırlarına göre çöz
+                points_to_convert = smart_fix_coordinates(points_to_convert)
+                st.success(f"📂 {len(points_to_convert)} adet nokta okundu.")
 
-                # EPSG Belirleme
-                in_epsg = 4326 if "WGS84" in input_sys else get_utm_zone_epsg(st.session_state.lon,
-                                                                              input_sys.split(' ')[0])
-                out_epsg = 4326 if "WGS84" in target_sys else get_utm_zone_epsg(st.session_state.lon,
-                                                                                target_sys.split(' ')[0])
+                # 🔍 OTOMATİK SİSTEM TESPİTİ
+                first_val = points_to_convert[0][0]
+                if abs(first_val) < 100:
+                    detected_sys = "WGS84 (GPS/Coğrafi)"
+                    st.success("✅ **WGS84 (Coğrafi)** koordinatlar algılandı. Giriş sistemi kilitlendi.")
+                    is_detected = True
+                else:
+                    detected_sys = "ITRF (UTM)"
+                    st.warning("📂 Metrik koordinatlar algılandı. Lütfen giriş sistemini (ITRF/ED50) teyit edin.")
 
-                if st.button("🚀 Dönüşümü Yap ve Listele", use_container_width=True):
-                    res_points = transform_points(points_to_convert, in_epsg, out_epsg)
-                    if res_points:
-                        df_res = pd.DataFrame(res_points, columns=["Sağa (Y) / Boylam", "Yukarı (X) / Enlem"])
-                        st.subheader(f"📍 Dönüşüm Sonuçları (EPSG:{out_epsg})")
-                        st.table(df_res.head(20))  # İlk 20 noktayı göster
-                        st.download_button("📥 Tam Listeyi CSV Olarak İndir", df_res.to_csv(index=False),
-                                           "donusturulmus_liste.csv", use_container_width=True)
         except Exception as e:
-            st.error(f"❌ Dosya okuma hatası: {str(e)}")
+            st.error(f"❌ Okuma hatası: {str(e)}")
+
+    col_set1, col_set2 = st.columns(2)
+    with col_set1:
+        # 🎯 HATA ÖNLEME: Eğer coğrafi koordinat algılandıysa seçim pasifize olur
+        input_sys = st.selectbox("Giriş Sistemi:", ["WGS84 (GPS/Coğrafi)", "ITRF (UTM)", "ED50 (UTM)"],
+                                 index=0 if detected_sys == "WGS84 (GPS/Coğrafi)" else 1,
+                                 disabled=is_detected)
+    with col_set2:
+        target_sys = st.selectbox("Hedef Sistem:", ["ITRF (Modern/UTM)", "ED50 (Klasik/UTM)", "WGS84 (Coğrafi)"])
+
+    if st.button("🚀 Dönüşümü Başlat ve Listele", use_container_width=True):
+        if not points_to_convert:
+            st.error("⚠️ Lütfen önce bir dosya yükleyin!")
+        else:
+            in_epsg = 4326 if "WGS84" in input_sys else get_utm_zone_epsg(st.session_state.lon, input_sys.split(' ')[0])
+            out_epsg = 4326 if "WGS84" in target_sys else get_utm_zone_epsg(st.session_state.lon,
+                                                                            target_sys.split(' ')[0])
+
+            res_points = transform_points(points_to_convert, in_epsg, out_epsg)
+            if res_points:
+                # 📊 TABLO DÜZENLEME: Kullanıcıya en net dille kolonları basıyoruz
+                y_label = "Boylam" if out_epsg == 4326 else "Sağa (Y) Değeri"
+                x_label = "Enlem" if out_epsg == 4326 else "Yukarı (X) Değeri"
+                df_res = pd.DataFrame(res_points, columns=[y_label, x_label])
+
+                st.subheader(f"📍 Dönüşüm Sonuçları (EPSG:{out_epsg})")
+                st.table(df_res.head(15))
+                st.download_button("📥 Tam Listeyi CSV İndir", df_res.to_csv(index=False), "sd_enerji_donusum.csv",
+                                   use_container_width=True)
 
     st.divider()
-    if st.button("⬅️ Analiz Sayfasına Dön"):
+    if st.button("⬅️ Analiz Sayfasına Dön", use_container_width=True):
         st.session_state.page = 'analiz';
         st.rerun()
 

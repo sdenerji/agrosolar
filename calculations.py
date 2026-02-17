@@ -35,6 +35,41 @@ def get_utm_zone_epsg(lon, datum="ITRF"):
     return f"230{utm_zone}"
 
 
+def smart_fix_coordinates(points):
+    """
+    Gelen noktaların Enlem/Boylam mı yoksa Metrik mi olduğunu anlar
+    ve Türkiye sınırlarına göre (Y, X) sırasını otomatik düzeltir.
+
+    """
+    if not points: return []
+    fixed_points = []
+
+    for p in points:
+        try:
+            v1, v2 = float(p[0]), float(p[1])
+
+            # 🎯 DURUM 1: Coğrafi Koordinat (WGS84) Tespiti
+            if abs(v1) < 100 and abs(v2) < 100:
+                # Türkiye: Lat (35-43), Lon (25-45)
+                # Eğer ilk değer 35-43 arasındaysa bu Enlem'dir, (Lon, Lat) sırasına çevir.
+                if 35 < v1 < 43:
+                    fixed_points.append((v2, v1))
+                else:
+                    fixed_points.append((v1, v2))
+
+            # 🎯 DURUM 2: Metrik Koordinat (ITRF/ED50) Tespiti
+            else:
+                # Türkiye'de Yukarı(X) ~4 milyon, Sağa(Y) ~500 bindir.
+                # Eğer ilk değer 1 milyondan büyükse (v1 > v2), yer değiştir.
+                if v1 > v2:
+                    fixed_points.append((v2, v1))
+                else:
+                    fixed_points.append((v1, v2))
+        except:
+            continue
+    return fixed_points
+
+
 # --- 1. COĞRAFİ VE ALAN ANALİZİ ---
 def calculate_slope_aspect(lat, lon):
     try:
