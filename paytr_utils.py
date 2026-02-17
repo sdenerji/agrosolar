@@ -9,70 +9,71 @@ import certifi
 
 def get_paytr_iframe_token(user_id, email, amount, plan_name):
     """
-    PayTR API'den iFrame token'ı alır.
-    amount: TL cinsinden tutar (örn: 49)
-    plan_name: "Pro" veya "Ultra"
+    PayTR API'den token alır.
+    OID Formatı: SD + {Etiket} + {TemizID} + {Zaman}
+    Örn: SDP550e8400e29b...1708543210 (Alt tire YOK)
     """
     try:
-        # 1. Secrets'tan Mağaza Bilgilerini Al
-        # .streamlit/secrets.toml dosyasına bunları eklemeniz gerekecek
+        # 1. Secrets'tan Bilgileri Al
         merchant_id = st.secrets["paytr"]["merchant_id"]
         merchant_key = st.secrets["paytr"]["merchant_key"]
         merchant_salt = st.secrets["paytr"]["merchant_salt"]
     except Exception:
-        return {"status": "error", "reason": "PayTR API anahtarları secrets.toml dosyasında bulunamadı!"}
+        return {"status": "error", "reason": "PayTR anahtarları secrets.toml içinde bulunamadı!"}
 
-    # 2. Ödeme Parametreleri
+    # --- 🎯 2. MÜHÜRLEME (ALT TİRE YOK) ---
+    # 3. Harf paket etiketi olacak: 'P' (Pro) veya 'U' (Ultra)
+    tag = "P" if plan_name == "Pro" else "U"
+
+    # UUID içindeki tireleri temizle (PayTR bazen sevmez)
     clean_id = str(user_id).replace("-", "").replace("_", "")
-    merchant_oid = f"SD{clean_id}{int(time.time())}"
-    email_str = email
-    payment_amount = int(amount * 100)  # PayTR kuruş ister (49 TL -> 4900)
 
-    # Sepet İçeriği (Zorunlu)
+    # OID Oluştur: SD + P + ID + TIMESTAMP
+    # Örn: SDP + 550e84... + 1712345678
+    merchant_oid = f"SD{tag}{clean_id}{int(time.time())}"
+
+    payment_amount = int(amount * 100)  # Kuruş cinsinden
+
+    # Sepet
     user_basket = base64.b64encode(
         f'[["{plan_name} Paket Abonelik", "{amount}", 1]]'.encode()
     ).decode()
 
-    # Diğer Ayarlar
-    # Not: Canlıda request.headers'dan IP almak daha doğrudur, şimdilik sunucu IP'si gider
+    # 3. Standart Ayarlar
     user_ip = "91.99.100.41"
     timeout_limit = "300"
-    debug_on = "1"  # Canlıda "0" yapın
-    test_mode = "1"  # CANLI ÖDEME ALMAK İÇİN BUNU "0" YAPMALISINIZ
-    no_installment = "0"  # Taksit yapılsın mı? 0=Evet
+    debug_on = "1"
+    test_mode = "1"  # ⚠️ DİKKAT: GERÇEK SATIŞTA BURAYI "0" YAPIN!
+    no_installment = "0"
     max_installment = "12"
     currency = "TL"
     lang = "tr"
 
-    # Başarılı/Hatalı Dönüş URL'leri (Wix siteniz veya Streamlit app linki)
-    # Webhook ile arka planda onaylayacağız ama kullanıcı buraya dönecek.
     merchant_ok_url = "https://analiz.sdenerji.com/?payment_status=success"
     merchant_fail_url = "https://analiz.sdenerji.com/?payment_status=fail"
 
-    # 3. Hash Oluşturma (PayTR Güvenlik İmzas)
-    # Sıralama: merchant_id + user_ip + merchant_oid + email + payment_amount + user_basket + no_installment + max_installment + currency + test_mode
-    hash_str = f"{merchant_id}{user_ip}{merchant_oid}{email_str}{payment_amount}{user_basket}{no_installment}{max_installment}{currency}{test_mode}"
+    # 4. Hash Hesaplama
+    hash_str = f"{merchant_id}{user_ip}{merchant_oid}{email}{payment_amount}{user_basket}{no_installment}{max_installment}{currency}{test_mode}"
 
-    # Token oluştur
     paytr_token = base64.b64encode(
         hmac.new(merchant_key.encode(), hash_str.encode() + merchant_salt.encode(), hashlib.sha256).digest()
     ).decode()
 
-    # 4. API İsteği
+    # 5. İstek Gönder
     params = {
         'merchant_id': merchant_id,
         'user_ip': user_ip,
         'merchant_oid': merchant_oid,
-        'email': email_str,
+        'email': email,
         'payment_amount': payment_amount,
         'paytr_token': paytr_token,
         'user_basket': user_basket,
         'debug_on': debug_on,
         'no_installment': no_installment,
         'max_installment': max_installment,
-        'user_name': "AgroSolar Kullanicisi",  # Veritabanından ad soyad da çekilebilir
+        'user_name': "AgroSolar Kullanicisi",
         'user_address': "Turkiye",
-        'user_phone': "905555555555",  # Zorunlu alan
+        'user_phone': "905555555555",
         'merchant_ok_url': merchant_ok_url,
         'merchant_fail_url': merchant_fail_url,
         'timeout_limit': timeout_limit,
@@ -82,11 +83,10 @@ def get_paytr_iframe_token(user_id, email, amount, plan_name):
     }
 
     try:
-        # verify=certifi.where() parametresini ekleyerek doğru sertifikayı zorluyoruz
         result = requests.post(
             'https://www.paytr.com/odeme/api/get-token',
             data=params,
-            verify=certifi.where()  # <--- KRİTİK DÜZELTME BURADA
+            verify=certifi.where()
         )
         res = result.json()
 

@@ -182,12 +182,12 @@ def show_profile_page():
 
     # --- 2. TIER 2: PRO (499 TL) ---
     with col2:
-        st.markdown("""
+        st.markdown(f"""
         <div style="border: 2px solid #28a745; padding: 20px; border-radius: 10px; text-align: center; height: 500px; display: flex; flex-direction: column; justify-content: space-between; background-color: #f0fff4;">
             <div>
                 <h4 style="color: #28a745; margin-bottom:0;">PROFESSIONAL</h4>
                 <div style="font-size: 12px; color: #28a745; margin-bottom: 10px;">Bireysel Yatırımcı & Emlakçı</div>
-                <h2 style="font-size: 2.2rem; color: #1e7e34;">f{PRO_PRICE} ₺ <small style="font-size: 1rem;">/ Ay</small></h2>
+                <h2 style="font-size: 2.2rem; color: #1e7e34;">{PRO_PRICE} ₺ <small style="font-size: 1rem;">/ Ay</small></h2>
                 <hr style="border-top: 1px solid #c3e6cb;">
                 <ul style="text-align: left; list-style-type: '✅ '; font-size:13px; padding-left: 20px; color: #155724; margin-top: 15px;">
                     <li style="margin-bottom: 8px;"><b>Profesyonel PDF Rapor</b></li>
@@ -216,12 +216,12 @@ def show_profile_page():
 
     # --- 3. TIER 3: ULTRA (1.299 TL) ---
     with col3:
-        st.markdown("""
+        st.markdown(f"""
         <div style="border: 2px solid #ffd700; padding: 20px; border-radius: 10px; text-align: center; height: 500px; display: flex; flex-direction: column; justify-content: space-between; background-color: #2b2d42; color: white;">
             <div>
                 <h4 style="color: #ffd700; margin-bottom:0;">ULTRA (KURUMSAL)</h4>
                 <div style="font-size: 12px; color: #aaa; margin-bottom: 10px;">Mühendislik & EPC Firmaları</div>
-                <h2 style="font-size: 2.2rem; color: #ffd700;">f{ULTRA_PRICE} ₺ <small style="font-size: 1rem;">/ Ay</small></h2>
+                <h2 style="font-size: 2.2rem; color: #ffd700;">{ULTRA_PRICE} ₺ <small style="font-size: 1rem;">/ Ay</small></h2>
                 <hr style="border-top: 1px solid #444;">
                 <ul style="text-align: left; list-style-type: '💎 '; font-size:13px; padding-left: 20px; margin-top: 15px;">
                     <li style="margin-bottom: 8px;"><b>Yapay Zeka (Gemini) Yorumu</b></li>
