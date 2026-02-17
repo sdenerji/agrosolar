@@ -23,10 +23,16 @@ def transform_points(points, from_epsg, to_epsg):
 
 
 def get_utm_zone_epsg(lon, datum="ITRF"):
-    """Boylam değerine göre Türkiye dilim orta boylamı EPSG kodunu bulur."""
-    zone = int((lon / 3) + 1)  # 3 derecelik dilimler
-    if datum == "ITRF": return f"326{zone}"
-    return f"230{zone}"  # ED50
+    """
+    Türkiye için lon değerine göre UTM (6 derece) EPSG kodunu bulur.
+    ITRF (WGS84) -> 32635-32638
+    ED50 -> 23035-23038
+
+    """
+    utm_zone = int(lon / 6) + 31
+    if datum == "ITRF":
+        return f"326{utm_zone}"
+    return f"230{utm_zone}"
 
 
 # --- 1. COĞRAFİ VE ALAN ANALİZİ ---

@@ -164,21 +164,65 @@ if st.session_state.page == 'profil':
 
 elif st.session_state.page == 'coord_tool':
     st.title("🌐 Koordinat Dönüşüm İstasyonu (Ultra)")
-    if st.session_state.parsel_geojson:
-        coords = st.session_state.parsel_geojson['features'][0]['geometry']['coordinates'][0]
-        datum = st.selectbox("Hedef Projeksiyon:", ["ITRF (Turef/UTM)", "ED50 (Klasik)"])
-        target_epsg = get_utm_zone_epsg(st.session_state.lon, datum.split(' ')[0])
-        if st.button("🚀 Dönüşümü Yap", use_container_width=True):
-            transformed = transform_points(coords, 4326, target_epsg)
-            if transformed:
-                df = pd.DataFrame(transformed, columns=["Y (Sağa)", "X (Yukarı)"])
-                st.subheader(f"📍 Mühendislik Koordinatları (EPSG:{target_epsg})")
-                st.table(df);
-                st.download_button("📥 İndir (CSV)", df.to_csv(index=False), "koordinatlar.csv",
-                                   use_container_width=True)
-    else:
-        st.warning("Lütfen önce bir parsel yükleyin.");
-    if st.button("⬅️ Geri Dön"): st.session_state.page = 'analiz'; st.rerun()
+    st.markdown("---")
+
+    # 🎯 ÇOKLU FORMAT YÜKLEME (JSON, NCN, CSV, TXT)
+    st.info("💡 Projenize ait nokta listesini (NCN, CSV, TXT) veya GeoJSON dosyasını yükleyin.")
+    ext_file = st.file_uploader("Dosya Yükle", type=["json", "geojson", "ncn", "csv", "txt"])
+
+    col_set1, col_set2 = st.columns(2)
+    with col_set1:
+        input_sys = st.selectbox("Giriş Sistemi:", ["WGS84 (GPS/Coğrafi)", "ITRF (UTM)", "ED50 (UTM)"])
+    with col_set2:
+        target_sys = st.selectbox("Hedef Sistem:", ["ED50 (Klasik/UTM)", "ITRF (Modern/UTM)", "WGS84 (Coğrafi)"])
+
+    if ext_file:
+        try:
+            points_to_convert = []
+            file_name = ext_file.name.lower()
+
+            # --- PARSERLAR ---
+            if file_name.endswith(('json', 'geojson')):
+                data = json.load(ext_file)
+                # İlk poligonun koordinatlarını al
+                points_to_convert = data['features'][0]['geometry']['coordinates'][0]
+
+            elif file_name.endswith('ncn'):
+                # Netcad NCN Format: Nokta_No Y X Z
+                for line in ext_file.read().decode('utf-8').splitlines():
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        points_to_convert.append((float(parts[1]), float(parts[2])))
+
+            elif file_name.endswith(('csv', 'txt')):
+                df_temp = pd.read_csv(ext_file, header=None)  # Varsayılan: Y, X
+                points_to_convert = df_temp.values.tolist()
+
+            # --- DÖNÜŞÜM İŞLEMİ ---
+            if points_to_convert:
+                st.success(f"📂 {len(points_to_convert)} adet nokta başarıyla okundu.")
+
+                # EPSG Belirleme
+                in_epsg = 4326 if "WGS84" in input_sys else get_utm_zone_epsg(st.session_state.lon,
+                                                                              input_sys.split(' ')[0])
+                out_epsg = 4326 if "WGS84" in target_sys else get_utm_zone_epsg(st.session_state.lon,
+                                                                                target_sys.split(' ')[0])
+
+                if st.button("🚀 Dönüşümü Yap ve Listele", use_container_width=True):
+                    res_points = transform_points(points_to_convert, in_epsg, out_epsg)
+                    if res_points:
+                        df_res = pd.DataFrame(res_points, columns=["Sağa (Y) / Boylam", "Yukarı (X) / Enlem"])
+                        st.subheader(f"📍 Dönüşüm Sonuçları (EPSG:{out_epsg})")
+                        st.table(df_res.head(20))  # İlk 20 noktayı göster
+                        st.download_button("📥 Tam Listeyi CSV Olarak İndir", df_res.to_csv(index=False),
+                                           "donusturulmus_liste.csv", use_container_width=True)
+        except Exception as e:
+            st.error(f"❌ Dosya okuma hatası: {str(e)}")
+
+    st.divider()
+    if st.button("⬅️ Analiz Sayfasına Dön"):
+        st.session_state.page = 'analiz';
+        st.rerun()
 
 elif st.session_state.page == '3d_analiz':
     if has_permission(st.session_state.user_role, "3d_precision_data"):
