@@ -26,18 +26,15 @@ except ImportError:
 
 # --- 🚀 SUPABASE IMPORT VE BAĞLANTI (YENİ EKLEME) ---
 try:
-    # Eğer projede merkezi bir supabase istemcisi varsa oradan çekiyoruz
-    # Yoksa doğrudan kütüphaneden import edip config'den okuyacağız
-    from db_base import supabase
-except ImportError:
-    # Eğer db_base yoksa, doğrudan bağlantı kuralım
     from supabase import create_client
-    import os
 
-    # Not: URL ve KEY genellikle st.secrets içinde veya ortam değişkenlerindedir
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
+    # Secrets içindeki [supabase] başlığına ve altındaki küçük harflere (url, key) bakıyoruz
+    url = st.secrets["supabase"]["url"]
+    key = st.secrets["supabase"]["key"]
+
     supabase = create_client(url, key)
+except Exception as e:
+    st.error(f"❌ Supabase bağlantı hatası: {e}")
 
 
 # ---------------------------------------------------
