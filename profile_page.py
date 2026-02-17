@@ -84,8 +84,10 @@ def show_profile_page():
         fiyatlar = {item['package_name']: float(item['price']) for item in fiyat_verisi.data}
     except Exception as e:
         # Veritabanı bağlantısı koparsa sistem çökmesin diye yedek fiyatlar
-        fiyatlar = {"Pro": 499.0, "Ultra": 1299.0}
-        st.sidebar.error(f"Fiyatlar yüklenirken hata oluştu: {e}")
+        #fiyatlar = {"Pro": 499.0, "Ultra": 1299.0}
+        #st.sidebar.error(f"Fiyatlar yüklenirken hata oluştu: {e}")
+        st.error(f"🚨 Supabase Bağlantı Hatası: {e}")
+        st.stop()
 
     # Tablodaki isimlerinize göre değişkenleri atıyoruz
     PRO_PRICE = fiyatlar.get("Pro", 499.0)
