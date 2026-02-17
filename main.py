@@ -68,14 +68,11 @@ st.set_page_config(page_title="SD Enerji", layout="wide")
 hide_header_footer()
 
 # --- PAYTR DÖNÜŞ KONTROLÜ (SONSUZ DÖNGÜ ÖNLEYİCİ) ---
-# Mantık: URL'de 'payment_status' varsa VE biz zaten profilde değilsek yönlendir.
-# Eğer zaten 'profil' sayfasındaysak sakın rerun() yapma!
 if "payment_status" in st.query_params:
     if st.query_params["payment_status"] == "success":
         if st.session_state.get("page") != "profil":
             st.session_state.page = "profil"
             st.rerun()
-
 
 # DEFAULT DEĞERLER
 if 'page' not in st.session_state: st.session_state.page = 'analiz'
@@ -106,7 +103,7 @@ if 'panel_tilt' not in st.session_state: st.session_state.panel_tilt = 30
 
 if 'selected_panel_brand' not in st.session_state: st.session_state.selected_panel_brand = list(PANEL_LIBRARY.keys())[0]
 if 'selected_inverter_brand' not in st.session_state: st.session_state.selected_inverter_brand = \
-    list(INVERTER_LIBRARY.keys())[0]
+list(INVERTER_LIBRARY.keys())[0]
 
 
 def init_app_session():
@@ -159,108 +156,117 @@ def update_from_map(clicked_lat, clicked_lon):
 
 
 # --------------------------------------------------------------------------
-# SAYFA AKIŞI
+# GLOBAL SIDEBAR (ARTIK HER SAYFADA GÖRÜNECEK)
+# --------------------------------------------------------------------------
+with st.sidebar:
+    if os.path.exists("assets/logo.png"):
+        st.image("assets/logo.png", width="stretch")
+    st.markdown("<h2 style='text-align: center; margin-top: -15px;'>SD ENERJİ</h2>", unsafe_allow_html=True)
+    st.divider()
+
+    if st.session_state.logged_in:
+        role_label = ROLE_PERMISSIONS.get(st.session_state.user_role, {}).get("label", st.session_state.user_role)
+        st.success(f"👤 {st.session_state.username}")
+        st.info(f"🛡️ Paket: **{role_label}**")
+        c1, c2 = st.columns(2)
+        if c1.button("🏠 Analiz"):
+            st.session_state.page = 'analiz'
+            st.rerun()
+        if c2.button("👤 Profil"):
+            st.session_state.page = 'profil'
+            st.rerun()
+        if st.button("Çıkış Yap", type="primary", use_container_width=True):
+            logout()
+    else:
+        show_auth_pages(get_supabase())
+        render_google_login()
+
+    st.divider()
+    st.markdown("### 📍 Konum & Parsel")
+    tab_manuel, tab_parsel = st.tabs(["📌 Manuel", "🗺️ Parsel"])
+
+    with tab_manuel:
+        if st.session_state.get("map_updater", False):
+            st.session_state.input_lat, st.session_state.input_lon = st.session_state.lat, st.session_state.lon
+            st.session_state.map_updater = False
+        st.number_input("Enlem", key='input_lat', format="%.6f", on_change=update_from_input)
+        st.number_input("Boylam", key='input_lon', format="%.6f", on_change=update_from_input)
+
+    with tab_parsel:
+        st.info("TKGM GeoJSON dosyasını yükleyin.")
+        uploaded_file = st.file_uploader("GeoJSON Yükle", type=["geojson", "json"])
+        if uploaded_file:
+            if st.session_state.get('last_processed_file') != uploaded_file.name:
+                if has_permission(st.session_state.user_role, "panel_placement"):
+                    try:
+                        geojson_data = json.load(uploaded_file)
+                        p_lat, p_lon, loc_data, success, msg = process_parsel_geojson(geojson_data)
+
+                        if success:
+                            st.session_state.lat, st.session_state.lon = p_lat, p_lon
+                            st.session_state.parsel_geojson = geojson_data
+                            st.session_state.parsel_location = loc_data
+                            st.session_state.layout_data = None
+                            st.session_state.string_results = None
+                            st.session_state.horizon_data = None
+                            st.session_state.pvgis_yield_data = None
+                            st.session_state.last_processed_file = uploaded_file.name
+                            st.session_state.map_initialized = False
+                            st.success(
+                                f"✅ Parsel: {loc_data.get('ilce', '')} / {loc_data.get('ada', '')}-{loc_data.get('parsel', '')}")
+                            time.sleep(0.5)
+                            st.rerun()
+                        else:
+                            st.error(msg)
+                    except Exception as e:
+                        st.error(f"Hata: {e}")
+                else:
+                    st.error("🔒 **Dosya İşleme Kısıtlı**")
+                    st.warning("Ultra pakete geçiniz.")
+        else:
+            if st.session_state.parsel_geojson is not None:
+                st.session_state.parsel_geojson = None
+                st.session_state.parsel_location = None
+                st.session_state.layout_data = None
+                st.session_state.string_results = None
+                st.session_state.last_processed_file = None
+                st.rerun()
+
+    st.divider()
+    if st.button("🚀 3D Arazi Analizi", use_container_width=True):
+        st.session_state.page = '3d_analiz'
+        st.rerun()
+
+    if st.session_state.get("user_role") == "Free":
+        st.divider()
+        st.info("🚀 Daha fazla özellik keşfedin!")
+        if st.button("💎 Paketleri İncele & Yükselt", type="primary", use_container_width=True):
+            st.session_state.page = 'profil'
+            st.rerun()
+
+    try:
+        admin_email = st.secrets["general"]["admin_email"]
+    except:
+        admin_email = None
+    if st.session_state.get("logged_in") and st.session_state.get("user_email") == admin_email:
+        st.divider()
+        with st.expander("🛠️ Yönetici Paneli", expanded=False):
+            render_admin_announcement_editor()
+
+# --------------------------------------------------------------------------
+# SAYFA AKIŞI (ROUTING)
 # --------------------------------------------------------------------------
 if st.session_state.page == 'profil':
     show_profile_page()
 elif st.session_state.page == '3d_analiz':
     show_3d_page()
 else:
-    # --- SIDEBAR ---
-    with st.sidebar:
-        if os.path.exists("assets/logo.png"): st.image("assets/logo.png", width="stretch")
-        st.markdown("<h2 style='text-align: center; margin-top: -15px;'>SD ENERJİ</h2>", unsafe_allow_html=True)
-        st.divider()
-
-        if st.session_state.logged_in:
-            role_label = ROLE_PERMISSIONS.get(st.session_state.user_role, {}).get("label", st.session_state.user_role)
-            st.success(f"👤 {st.session_state.username}")
-            st.info(f"🛡️ Paket: **{role_label}**")
-            c1, c2 = st.columns(2)
-            if c1.button("🏠 Analiz"): st.session_state.page = 'analiz'; st.rerun()
-            if c2.button("👤 Profil"): st.session_state.page = 'profil'; st.rerun()
-            if st.button("Çıkış Yap", type="primary", use_container_width=True): logout()
-        else:
-            show_auth_pages(get_supabase())
-            render_google_login()
-
-        st.divider()
-        st.markdown("### 📍 Konum & Parsel")
-        tab_manuel, tab_parsel = st.tabs(["📌 Manuel", "🗺️ Parsel"])
-
-        with tab_manuel:
-            if st.session_state.get("map_updater", False):
-                st.session_state.input_lat, st.session_state.input_lon = st.session_state.lat, st.session_state.lon
-                st.session_state.map_updater = False
-            st.number_input("Enlem", key='input_lat', format="%.6f", on_change=update_from_input)
-            st.number_input("Boylam", key='input_lon', format="%.6f", on_change=update_from_input)
-
-        with tab_parsel:
-            st.info("TKGM GeoJSON dosyasını yükleyin.")
-            uploaded_file = st.file_uploader("GeoJSON Yükle", type=["geojson", "json"])
-            if uploaded_file:
-                if st.session_state.get('last_processed_file') != uploaded_file.name:
-                    if has_permission(st.session_state.user_role, "panel_placement"):
-                        try:
-                            geojson_data = json.load(uploaded_file)
-                            # process_parsel_geojson artık 5 değer döndürüyor, burası DOĞRU
-                            p_lat, p_lon, loc_data, success, msg = process_parsel_geojson(geojson_data)
-
-                            if success:
-                                st.session_state.lat, st.session_state.lon = p_lat, p_lon
-                                st.session_state.parsel_geojson = geojson_data
-                                st.session_state.parsel_location = loc_data  # Tapu bilgisini kaydet
-                                st.session_state.layout_data = None
-                                st.session_state.string_results = None
-                                st.session_state.horizon_data = None
-                                st.session_state.pvgis_yield_data = None
-                                st.session_state.last_processed_file = uploaded_file.name
-                                st.session_state.map_initialized = False  # Haritayı yenile
-                                st.success(
-                                    f"✅ Parsel: {loc_data.get('ilce', '')} / {loc_data.get('ada', '')}-{loc_data.get('parsel', '')}")
-                                time.sleep(0.5);
-                                st.rerun()
-                            else:
-                                st.error(msg)
-                        except Exception as e:
-                            st.error(f"Hata: {e}")
-                    else:
-                        st.error("🔒 **Dosya İşleme Kısıtlı**");
-                        st.warning("Ultra pakete geçiniz.")
-            else:
-                if st.session_state.parsel_geojson is not None:
-                    st.session_state.parsel_geojson = None
-                    st.session_state.parsel_location = None
-                    st.session_state.layout_data = None
-                    st.session_state.string_results = None
-                    st.session_state.last_processed_file = None
-                    st.rerun()
-
-        st.divider()
-        if st.button("🚀 3D Arazi Analizi", use_container_width=True):
-            st.session_state.page = '3d_analiz';
-            st.rerun()
-        if st.session_state.get("user_role") == "Free":
-            st.divider()
-            st.info("🚀 Daha fazla özellik keşfedin!")
-            if st.button("💎 Paketleri İncele & Yükselt", type="primary", use_container_width=True):
-                st.session_state.page = 'profil'
-                st.rerun()
-        try:
-            admin_email = st.secrets["general"]["admin_email"]
-        except:
-            admin_email = None
-        if st.session_state.get("logged_in") and st.session_state.get("user_email") == admin_email:
-            st.divider()
-            with st.expander("🛠️ Yönetici Paneli", expanded=False): render_admin_announcement_editor()
-
-    # --- ANA EKRAN ---
+    # --- ANA ANALİZ EKRANI (Varsayılan) ---
     render_announcement_banner()
     st.title("⚡ SD Enerji Analiz Platformu")
     col1, col2 = st.columns([2, 1])
 
     # --- HESAPLAMALAR ---
-    # Bu fonksiyon artık gerçek veriyi çekecek (calculations.py içindeki değişiklikle)
     rakim, egim, baki = calculate_slope_aspect(st.session_state.lat, st.session_state.lon)
     real_area_m2 = calculate_geodesic_area(st.session_state.parsel_geojson)
 
@@ -271,14 +277,12 @@ else:
             st.session_state.last_lat = st.session_state.lat
 
     # --- ÜRETİM HESAPLAMA MOTORU ---
-    res_prod = 0;
-    res_roi = 0;
-    res_cost = 0;
+    res_prod = 0
+    res_roi = 0
+    res_cost = 0
     res_pot = None
     if st.session_state.layout_data:
         kw_power = st.session_state.layout_data['capacity_kw']
-
-        # PVGIS Verisi
         pvgis_val = None
         if st.session_state.pvgis_yield_data:
             pvgis_val = st.session_state.pvgis_yield_data['specific_yield']
@@ -291,8 +295,8 @@ else:
             unit_capex=st.session_state.unit_capex
         )
         if res_pot:
-            res_prod = res_pot[0];
-            res_cost = res_pot[2];
+            res_prod = res_pot[0]
+            res_cost = res_pot[2]
             res_roi = res_pot[3]
             st.session_state.analysis_results = {
                 "production": res_prod, "roi": res_roi, "cost": res_cost,
@@ -311,9 +315,6 @@ else:
             else:
                 st.toast("🔒 Pro özellik!", icon="🚫")
 
-        # --- DÜZELTİLEN AUTO LOCATE MANTIĞI ---
-        # Parsel Yüklüyse (geojson var) -> GPS KAPALI (False) -> Parsele odaklan
-        # Parsel Yoksa (geojson yok) ve harita yeni açılıyorsa -> GPS AÇIK (True) -> Konuma git
         should_use_gps = (not st.session_state.map_initialized) and (st.session_state.parsel_geojson is None)
 
         m = create_base_map(st.session_state.lat, st.session_state.lon, selected_config, auto_locate=should_use_gps)
@@ -337,7 +338,7 @@ else:
         output = st_folium(m, height=550, width="100%", returned_objects=["last_clicked"], key="main_map")
         if output and output['last_clicked']:
             if abs(output['last_clicked']['lat'] - st.session_state.lat) > 0.0001:
-                update_from_map(output['last_clicked']['lat'], output['last_clicked']['lng']);
+                update_from_map(output['last_clicked']['lat'], output['last_clicked']['lng'])
                 st.rerun()
 
     with col2:
@@ -370,7 +371,6 @@ else:
 
         st.markdown("---")
         with st.expander("🔌 Tasarım & Yerleşim", expanded=True):
-
             c_fin1, c_fin2 = st.columns(2)
             st.session_state.elec_price = c_fin1.number_input("Satış Birim Fiyatı ($/kWh)",
                                                               value=st.session_state.elec_price, format="%.3f",
@@ -410,8 +410,8 @@ else:
                 table_options = ["2x20 (40 Panel)", "2x15 (30 Panel)", "2x10 (20 Panel)", "2x5 (10 Panel)",
                                  "1x20 (20 Panel)", "1x10 (10 Panel)", "1x5 (5 Panel)"]
                 tt = c_s3.selectbox("Sehpa Tipi", table_options, index=2)
-                parts = tt.split(' ')[0].split('x');
-                t_rows = int(parts[0]);
+                parts = tt.split(' ')[0].split('x')
+                t_rows = int(parts[0])
                 t_cols = int(parts[1])
                 col_sp = c_s4.slider("Yan Boşluk (m)", 0.1, 5.0, 0.5)
 
@@ -424,7 +424,7 @@ else:
                             if fresh_pvgis['success']:
                                 st.session_state.pvgis_yield_data = fresh_pvgis
 
-                        p_w = current_panel_data.get("width", 1.134);
+                        p_w = current_panel_data.get("width", 1.134)
                         p_h = current_panel_data.get("height", 2.279)
                         layout_res = SolarLayoutEngine(
                             st.session_state.parsel_geojson["features"][0]["geometry"]).generate_layout(
@@ -446,9 +446,8 @@ else:
                 l_data = st.session_state.layout_data
                 st.info(f"Panel: {l_data['count']} Adet | Güç: {l_data['capacity_kw']} kWp")
                 skipped = l_data.get('skipped_rows', 0)
-                eng_note_text = None  # Varsayılan boş
+                eng_note_text = None
                 if skipped > 0:
-                    # Detaylı açıklama geri eklendi
                     eng_note_text = (
                         f"Geometrik sınırlar ve çekme payları (Setback) nedeniyle {skipped} adet panel sırası parsele sığmamıştır. "
                         f"Çekme paylarını düşürmeyi veya daha küçük sehpa tiplerini (örn: 2x10 yerine 2x5) kullanmayı deneyebilirsiniz.")
@@ -466,7 +465,6 @@ else:
 
                 bank_data = calculate_bankability_metrics(res_prod, res_cost, st.session_state.elec_price)
 
-                # --- YORUM MOTORU ENTEGRASYONU ---
                 from calculations import interpret_monthly_data, interpret_cash_flow, interpret_shading
 
                 monthly_comment = ""
@@ -498,7 +496,6 @@ else:
                     "monthly_data": st.session_state.pvgis_yield_data[
                         'monthly_data'] if st.session_state.pvgis_yield_data else None,
                     "username": st.session_state.username if st.session_state.username else "Misafir",
-                    # --- YENİ EKLENEN YORUMLAR ---
                     "monthly_comment": monthly_comment,
                     "cash_comment": cash_comment,
                     "shading_comment": shading_comment,
@@ -506,12 +503,9 @@ else:
                 }
 
                 st.markdown("---")
-                # --- RAPOR OLUŞTURMA BUTONU ---
                 if st.button("📊 Rapor Oluştur", use_container_width=True):
                     if st.session_state.parsel_geojson:
                         with st.spinner("Yapay Zeka ve Rapor Hazırlanıyor..."):
-                            # 1. Önce Veri Paketini (report_data) Oluşturalım
-                            # (Burada tanımladığımız için artık "Unresolved Reference" hatası vermez)
                             bank_data = calculate_bankability_metrics(res_prod, res_cost, st.session_state.elec_price)
 
                             report_data = {
@@ -523,7 +517,7 @@ else:
                                 "cost": int(res_cost),
                                 "irr": bank_data['irr'],
                                 "npv": bank_data['npv'],
-                                "co2": bank_data['co2'],  # <--- BU EKSİK SATIRI EKLEYİN
+                                "co2": bank_data['co2'],
                                 "trees": bank_data['trees'],
                                 "cash_flow": bank_data['cash_flow'],
                                 "slope": egim,
@@ -537,30 +531,21 @@ else:
                                 "engineering_note": eng_note_text
                             }
 
-                            # 2. Şimdi bu paketi AI Servisine Gönderelim
-                            # ai_service içindeki 'data' buradaki 'report_data' olacak
                             try:
                                 from ai_service import generate_smart_report_summary
 
-                                # Fonksiyonu çağır
                                 ai_comment = generate_smart_report_summary(report_data)
                                 report_data["ai_summary"] = ai_comment
-
                             except Exception as e:
-                                # HATA BURADA: Bunu ekrana yazdıralım ki ne olduğunu görelim!
                                 st.error(f"⚠️ YAPAY ZEKA BAĞLANTI HATASI: {str(e)}")
-
-                                # Rapor patlamasın diye yedek metni koyuyoruz
                                 report_data[
                                     "ai_summary"] = "Teknik veriler ışığında projenin yüksek verimlilik potansiyeline sahip olduğu öngörülmektedir."
 
-                                # 3. Görselleri Hazırla
                             generate_parsel_plot(st.session_state.parsel_geojson, st.session_state.layout_data)
                             report_data["graph_path"] = generate_earnings_graph(*res_pot[:4]) if res_pot else None
                             report_data["monthly_data"] = st.session_state.pvgis_yield_data[
                                 'monthly_data'] if st.session_state.pvgis_yield_data else None
 
-                            # 4. PDF Oluştur
                             st.session_state.pdf_bytes = generate_full_report(report_data)
                             st.success("🤖 Yapay Zeka Analizi ve Rapor Hazır!")
                     else:

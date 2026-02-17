@@ -82,7 +82,7 @@ def show_profile_page():
         # Supabase'deki 'paket_fiyat' tablonuzdan verileri çekiyoruz
         fiyat_verisi = supabase.table("paket_fiyat").select("*").execute()
         fiyatlar = {item['package_name']: float(item['price']) for item in fiyat_verisi.data}
-        st.write("📡 Supabase'den Gelen Ham Veri:", fiyat_verisi.data)
+        #st.write("📡 Supabase'den Gelen Ham Veri:", fiyat_verisi.data)
     except Exception as e:
         # Veritabanı bağlantısı koparsa sistem çökmesin diye yedek fiyatlar
         fiyatlar = {"Pro": 499.0, "Ultra": 1299.0}
