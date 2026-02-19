@@ -157,6 +157,10 @@ with st.sidebar:
         else:
             st.warning("🔒 Pro paket gereklidir.")
 
+    st.divider()
+    st.caption("Mühendislik ve Veri Güvenliği")
+    st.sidebar.page_link("https://www.sdenerji.com/gizlilik-politikasi/", label="⚖️ Gizlilik Politikası", icon="📜")
+    st.sidebar.page_link("https://www.sdenerji.com/kullanim-sartlari/", label="🛡️ Kullanım Şartları", icon="📑")
 # --------------------------------------------------------------------------
 # 🎯 SAYFA AKIŞI (ROUTING) - HATA DÜZELTİLDİ
 # --------------------------------------------------------------------------
@@ -249,8 +253,11 @@ elif st.session_state.page == '3d_analiz':
 
 else:
     # --- ANA ANALİZ EKRANI (DASHBOARD) ---
+
+    st.title("⚡ SD Enerji Analiz App")
+    st.info(
+        "SD Enerji Analiz App; profesyonel GES tasarımı, 3D arazi modelleme ve teknik raporlama sunan bir mühendislik platformudur.")
     render_announcement_banner()
-    st.title("⚡ SD Enerji Analiz Platformu")
     col1, col2 = st.columns([2, 1])
 
     rakim, egim, baki = calculate_slope_aspect(st.session_state.lat, st.session_state.lon)
