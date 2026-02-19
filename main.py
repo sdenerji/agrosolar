@@ -244,9 +244,8 @@ elif st.session_state.page == 'coord_tool':
 
 elif st.session_state.page == '3d_analiz':
     if has_permission(st.session_state.user_role, "3d_precision_data"):
-        st.info("💎 Ultra Mod: NCN/TXT Hassas veri girişi aktif.")
-        st.file_uploader("Ölçüm Dosyası Yükle", type=["ncn", "csv", "txt"])
-    show_3d_page()
+
+        show_3d_page()
 
 else:
     # --- ANA ANALİZ EKRANI (DASHBOARD) ---
