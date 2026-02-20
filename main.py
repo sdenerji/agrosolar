@@ -46,62 +46,58 @@ matplotlib.use('Agg')
 supabase = get_supabase()
 
 # --------------------------------------------------------------------------
-# 🎯 SD ENERJİ - GÜVENLİ OTURUM VE HAFIZA YÖNETİMİ (KESİN ÇÖZÜM)
+# 🎯 SD ENERJİ - MERKEZİ OTURUM YÖNETİMİ (KONSOLİDE EDİLDİ)
 # --------------------------------------------------------------------------
-import time
 
-# 1. URL'DEN GELEN TOKEN'I YAKALA (Mavi buton tıklandığında Python burayı görür)
+# 1. URL'DEN ANAHTARI YAKALA
 if "access_token" in st.query_params:
     token = st.query_params["access_token"]
-    refresh = st.query_params.get("refresh_token", "")
     try:
-        # Supabase'e "İşte anahtarım, oturumu kur" diyoruz
-        supabase.auth.set_session(token, refresh)
-
-        # Kullanıcıyı doğrula
+        # Supabase'e bu anahtarı tanıt
+        supabase.auth.set_session(token, st.query_params.get("refresh_token", ""))
         user_resp = supabase.auth.get_user()
+
         if user_resp and user_resp.user:
             u = user_resp.user
             st.session_state.logged_in = True
             st.session_state.user_id = u.id
             st.session_state.username = u.user_metadata.get('full_name', u.email.split('@')[0])
 
-            # Rol bilgisini çek
+            # Rol çekme
             try:
                 r_q = supabase.table("users").select("role").eq("id", u.id).execute()
                 st.session_state.user_role = r_q.data[0].get("role", "Free") if r_q.data else "Free"
             except:
                 st.session_state.user_role = "Free"
 
-            # URL'yi temizle ve ANALİZ DASHBOARD'una fırlat
             st.query_params.clear()
-            st.success("✅ Giriş başarılı, yönlendiriliyorsunuz...")
+            st.success("✅ Giriş başarılı...")
             time.sleep(0.5)
             st.rerun()
     except Exception as e:
-        st.error(f"❌ Giriş anahtarı işlenemedi: {e}")
+        st.error(f"❌ Giriş hatası: {e}")
 
-# 2. MEVCUT OTURUMU HER YENİLEMEDE KORU (Hafıza Kaybını Önler)
-current_user = None
+# 2. MEVCUT OTURUMU KONTROL ET VE KORU
+curr_user = None
 try:
-    # Eğer session state'de logged_in yoksa bile Supabase'e sor
+    # Eğer zaten bir login state varsa veya session canlıysa
     sess = supabase.auth.get_session()
     if sess and sess.user:
-        current_user = sess.user
+        curr_user = sess.user
 except:
     pass
 
-if current_user:
+if curr_user:
     st.session_state.logged_in = True
-    st.session_state.user_id = current_user.id
-    st.session_state.username = current_user.user_metadata.get('full_name', current_user.email.split('@')[0])
-    # Rol kontrolü
-    if 'user_role' not in st.session_state or st.session_state.user_role == "Free":
+    st.session_state.user_id = curr_user.id
+    st.session_state.username = curr_user.user_metadata.get('full_name', curr_user.email.split('@')[0])
+    # Rol eksikse tamamla
+    if st.session_state.get('user_role', 'Free') == 'Free':
         try:
-            r_data = supabase.table("users").select("role").eq("id", current_user.id).execute()
+            r_data = supabase.table("users").select("role").eq("id", curr_user.id).execute()
             st.session_state.user_role = r_data.data[0].get("role", "Free") if r_data.data else "Free"
         except:
-            st.session_state.user_role = "Free"
+            pass
 else:
     st.session_state.logged_in = False
 
@@ -241,39 +237,31 @@ if not st.session_state.logged_in:
 
     import streamlit.components.v1 as components
 
-    # Bu kod, Streamlit iframe'inden dışarı sızıp ana tarayıcı penceresine müdahale eder
     components.html("""
-            <div id="bridge-card" style="display:none; flex-direction:column; align-items:center; justify-content:center; padding:40px; font-family:sans-serif; background:white; border-radius:12px; border:2px solid #e1e4e8; box-shadow:0 10px 25px rgba(0,0,0,0.1); margin:20px auto; max-width:500px; text-align:center;">
-                <div style="font-size:50px; margin-bottom:15px;">✅</div>
-                <h2 style="color:#1a202c; margin-bottom:10px; font-size:22px;">Google Onayı Başarılı!</h2>
-                <p style="color:#4a5568; margin-bottom:25px; line-height:1.5;">Hesabınız doğrulandı. Güvenli giriş işlemini tamamlamak için aşağıdaki butona tıklayın.</p>
-                <button onclick="forceRedirect()" style="background-color:#1a73e8; color:white; padding:15px 35px; border:none; border-radius:8px; font-weight:bold; font-size:18px; cursor:pointer; width:100%; transition:background 0.3s ease;">
-                    🚀 Platforma Giriş Yap
-                </button>
-            </div>
+        <div id="bridge" style="display:none; flex-direction:column; align-items:center; justify-content:center; padding:30px; font-family:sans-serif; background:#fff; border-radius:12px; border:2px solid #1a73e8; box-shadow:0 8px 16px rgba(0,0,0,0.1); margin:20px;">
+            <h2 style="color:#2c3e50; margin-bottom:5px;">✅ Google Doğrulandı</h2>
+            <p style="color:#7f8c8d; margin-bottom:20px;">Platforma güvenli geçiş için aşağıdaki butona tıklayın.</p>
+            <button id="goBtn" style="background:#1a73e8; color:white; padding:14px 30px; border:none; border-radius:6px; font-weight:bold; font-size:16px; cursor:pointer; width:100%;">
+                🚀 Platforma Giriş Yap
+            </button>
+        </div>
 
-            <script>
-                function forceRedirect() {
-                    // Tarayıcının en üst penceresine (Adres Çubuğuna) ulaş
-                    var win = window.top || window.parent || window;
-                    var currentHash = win.location.hash;
+        <script>
+            // Tarayıcının ana adres çubuğuna bak
+            var topWin = window.top || window.parent || window;
+            var h = topWin.location.hash;
 
-                    if (currentHash && currentHash.includes("access_token=")) {
-                        // '#' işaretini '?' yaparak Python'ın okuyabileceği hale getir
-                        var cleanUrl = win.location.origin + win.location.pathname + currentHash.replace('#', '?');
+            if (h && h.includes("access_token=")) {
+                document.getElementById('bridge').style.display = 'flex';
 
-                        // Tarayıcıyı bu yeni URL'ye zorla yönlendir
-                        win.location.replace(cleanUrl);
-                    }
-                }
-
-                // URL'de token varsa kartı göster
-                var hashCheck = (window.top || window.parent || window).location.hash;
-                if (hashCheck.includes("access_token=")) {
-                    document.getElementById('bridge-card').style.display = 'flex';
-                }
-            </script>
-        """, height=350)
+                document.getElementById('goBtn').onclick = function() {
+                    // Manuel yaptığınız işlemin aynısı: # işaretini ? yap ve sayfayı oraya taşı
+                    var targetUrl = topWin.location.origin + topWin.location.pathname + h.replace('#', '?');
+                    topWin.location.href = targetUrl;
+                };
+            }
+        </script>
+        """, height=300)
 
 elif st.session_state.page == 'profil':
     show_profile_page()
