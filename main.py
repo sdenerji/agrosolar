@@ -46,50 +46,23 @@ matplotlib.use('Agg')
 # --------------------------------------------------------------------------
 # 🎯 SUPABASE & GOOGLE OTURUM YAKALAYICI
 # --------------------------------------------------------------------------
-import streamlit.components.v1 as components
-
 supabase = get_supabase()
 
 # --------------------------------------------------------------------------
-# 🎯 SUPABASE & GOOGLE OTURUM YAKALAYICI (NİHAİ ÇÖZÜM - IFRAME DELİCİ)
+# 🎯 SUPABASE & GOOGLE OTURUM YAKALAYICI (PYTHON KISMI)
 # --------------------------------------------------------------------------
-import streamlit.components.v1 as components
 import time
 
-# 1. GÖRÜNMEZ YAKALAYICI (Streamlit'in hapishanesinden 'window.top' ile çıkıyoruz)
-components.html(
-    """
-    <script>
-        // En üst seviyedeki tarayıcı penceresine ulaş
-        var targetWindow = window.top || window.parent || window;
-        var hash = targetWindow.location.hash;
-
-        // Eğer URL'de '#' varsa ve bu bir token ise, anında '?' ile değiştir
-        if (hash && hash.includes("access_token=")) {
-            var newUrl = targetWindow.location.origin + targetWindow.location.pathname + hash.replace('#', '?');
-            targetWindow.location.replace(newUrl);
-        }
-    </script>
-    """,
-    height=0, width=0
-)
-
-# 2. OTURUMU AÇMA (Saniye farkıyla yakalayıp içeri alıyoruz)
+# OTURUMU AÇMA (Sadece bu kalacak)
 query_params = st.query_params
 if "access_token" in query_params:
     try:
-        # Supabase'e giriş iznini ver
         supabase.auth.set_session(query_params["access_token"], query_params.get("refresh_token", ""))
-
-        # Tarayıcı çubuğundaki o uzun çirkin yazıları temizle
         st.query_params.clear()
-
-        # Sistemi yarım saniye bekletip Analiz ekranına fırlat
         time.sleep(0.5)
         st.rerun()
     except Exception as e:
-        st.error(f"Oturum doğrulama hatası: {e}")
-
+        print(f"Oturum doğrulama hatası: {e}")
 
 # 3. MEVCUT OTURUM KONTROLÜ
 def check_active_session():
@@ -249,6 +222,29 @@ if not st.session_state.logged_in:
     st.markdown("---")
     st.markdown(
         "SD Enerji Analiz App; profesyonel GES tasarımı, 3D arazi modelleme ve teknik raporlama sunan bir mühendislik platformudur.")
+
+    import streamlit.components.v1 as components
+
+    components.html("""
+        <script>
+            var targetWindow = window.parent || window;
+            var hash = targetWindow.location.hash;
+
+            // Eğer URL'de başarılı giriş şifresi varsa bu butonu çiz
+            if (hash && hash.includes("access_token=")) {
+                var newUrl = targetWindow.location.origin + targetWindow.location.pathname + hash.replace('#', '?');
+                document.write(`
+                    <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; padding:30px; font-family:sans-serif; background-color:#f8f9fa; border-radius:10px; border:2px dashed #1a73e8; margin-top:20px;">
+                        <h2 style="color:#2c3e50; margin-bottom:10px;">✅ Google Onayı Başarılı</h2>
+                        <p style="color:#7f8c8d; margin-bottom:20px;">Streamlit güvenlik duvarını aşmak için lütfen aşağıdaki butona tıklayın.</p>
+                        <a href="${newUrl}" target="_top" style="background-color:#1a73e8; color:white; padding:12px 25px; text-decoration:none; border-radius:5px; font-weight:bold; font-size:16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                            🚀 Platforma Giriş Yap
+                        </a>
+                    </div>
+                `);
+            }
+        </script>
+        """, height=250)
 
 elif st.session_state.page == 'profil':
     show_profile_page()
