@@ -50,54 +50,64 @@ supabase = get_supabase()
 # --------------------------------------------------------------------------
 import time
 
-# 1. URL'DEN ANAHTARI YAKALA VE HAFIZAYA KAZI
-import time
-
-# 1. URL'DEKİ ANAHTARI CEBE KOY (Mavi butona tıklandığında burası çalışır)
-q_params = st.query_params
+# 1. URL'DEN GELEN TOKEN'I YAKALA (Köprü butonu tıklandığında çalışır)
 if "access_token" in st.query_params:
     token = st.query_params["access_token"]
+    refresh = st.query_params.get("refresh_token", "")
     try:
-        # 1. Supabase'e "Bu anahtar kimin?" diye soruyoruz
-        user_resp = get_supabase().auth.get_user(token)
+        # Supabase istemcisine oturumu zorla kaydet
+        supabase.auth.set_session(token, refresh)
 
+        # Kullanıcıyı doğrula
+        user_resp = supabase.auth.get_user()
         if user_resp and user_resp.user:
-            # 2. Onay gelirse tüm kilitleri açıyoruz
             u = user_resp.user
             st.session_state.logged_in = True
             st.session_state.user_id = u.id
             st.session_state.user_email = u.email
             st.session_state.username = u.user_metadata.get('full_name', u.email.split('@')[0])
 
-            # 3. Rol yetkilerini (Pro/Ultra) veritabanından çekiyoruz
+            # Rol bilgisini çek
             try:
-                role_q = get_supabase().table("users").select("role").eq("id", u.id).execute()
-                st.session_state.user_role = role_q.data[0].get("role", "Free") if role_q.data else "Free"
+                r_q = supabase.table("users").select("role").eq("id", u.id).execute()
+                st.session_state.user_role = r_q.data[0].get("role", "Free") if r_q.data else "Free"
             except:
                 st.session_state.user_role = "Free"
 
-            # 4. URL'deki karmaşayı temizleyip ANALİZ DASHBOARD'una giriyoruz!
+            # URL'yi temizle ve içeri fırlat
             st.query_params.clear()
-            st.success("✅ Giriş onaylandı, SD Enerji Analiz App açılıyor...")
+            st.success("✅ Giriş başarılı, yönlendiriliyorsunuz...")
             time.sleep(0.5)
             st.rerun()
-
     except Exception as e:
-        # Bir sorun olursa gizli kalmasın, ekrana basıyoruz
-        st.error(f"❌ Giriş anahtarı işlenirken hata oluştu: {str(e)}")
+        st.error(f"❌ Giriş anahtarı işlenemedi: {e}")
 
-# 2. MEVCUT OTURUMU KORU (Sayfa her yenilendiğinde burası kontrol eder)
-if not st.session_state.get('logged_in', False):
-    try:
-        # Eğer zaten bir session varsa onu yakala
-        check_sess = supabase.auth.get_session()
-        if check_sess and check_sess.user:
-            u = check_sess.user
-            st.session_state.logged_in = True
-            st.session_state.user_id = u.id
-            st.session_state.username = u.user_metadata.get('full_name', 'Kullanıcı')
-    except:
-        pass
+# 2. MEVCUT OTURUMU KONTROL ET (Her yenilemede çalışır)
+current_user = None
+try:
+    # Supabase'in kendi hafızasına soralım
+    session = supabase.auth.get_session()
+    if session and session.user:
+        current_user = session.user
+except:
+    pass
+
+# 3. SESSION STATE'İ GÜNCELLE VE KAPIYI AÇ
+if current_user:
+    st.session_state.logged_in = True
+    st.session_state.user_id = current_user.id
+    st.session_state.user_email = current_user.email
+    st.session_state.username = current_user.user_metadata.get('full_name', current_user.email.split('@')[0])
+
+    # Rolü kontrol et (Eğer session state'de yoksa veritabanından çek)
+    if 'user_role' not in st.session_state or st.session_state.user_role == "Free":
+        try:
+            r_data = supabase.table("users").select("role").eq("id", current_user.id).execute()
+            st.session_state.user_role = r_data.data[0].get("role", "Free") if r_data.data else "Free"
+        except:
+            st.session_state.user_role = "Free"
+else:
+    st.session_state.logged_in = False
 
 # 3. KULLANICI DOĞRULAMA (Şu an kim içeride?)
 current_user = None
