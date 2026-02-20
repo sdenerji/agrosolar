@@ -405,19 +405,43 @@ else:
             unsafe_allow_html=True)
 
         with st.expander("🔌 Tasarım & Yerleşim", expanded=True):
-            st.session_state.elec_price = st.number_input("Satış ($/kWh)", value=st.session_state.elec_price,
-                                                          format="%.3f")
-            p_brand = st.selectbox("Panel:", list(PANEL_LIBRARY.keys()));
+            # 1. FİNANSAL PARAMETRELER
+            f_col1, f_col2 = st.columns(2)
+            st.session_state.elec_price = f_col1.number_input("Satış ($/kWh)", value=st.session_state.elec_price,
+                                                              format="%.3f")
+            # 🎯 EKLENDİ: Yatırım Maliyeti (CAPEX) girdisi geri getirildi
+            st.session_state.unit_capex = f_col2.number_input("Maliyet ($/kWp)", value=st.session_state.unit_capex,
+                                                              step=50.0, format="%.1f")
+
+            st.markdown("---")
+
+            # 2. DONANIM SEÇİMİ
+            p_brand = st.selectbox("Panel:", list(PANEL_LIBRARY.keys()))
             st.session_state.selected_panel_brand = p_brand
-            p_model = st.selectbox("Model:", list(PANEL_LIBRARY[p_brand].keys()));
+            p_model = st.selectbox("Model:", list(PANEL_LIBRARY[p_brand].keys()))
             st.session_state.selected_panel_model = p_model
-            i_brand = st.selectbox("İnverter:", list(INVERTER_LIBRARY.keys()));
-            sel_i_model = st.selectbox("Model:", list(INVERTER_LIBRARY[i_brand].keys()))
+
+            i_col1, i_col2 = st.columns(2)
+            i_brand = i_col1.selectbox("İnverter:", list(INVERTER_LIBRARY.keys()))
+            sel_i_model = i_col2.selectbox("Model:", list(INVERTER_LIBRARY[i_brand].keys()))
             st.session_state.selected_inverter_model = sel_i_model
 
-            tt = st.selectbox("Sehpa", ["2x20 (40 Panel)", "2x10 (20 Panel)", "2x5 (10 Panel)", "1x5 (5 Panel)"],
-                              index=2)
+            st.markdown("---")
+
+            # 3. GEOMETRİK YERLEŞİM VE TASARIM
+            t_col1, t_col2 = st.columns(2)
+            tt = t_col1.selectbox("Sehpa", ["2x20 (40 Panel)", "2x10 (20 Panel)", "2x5 (10 Panel)", "1x5 (5 Panel)"],
+                                  index=2)
             t_r, t_c = int(tt.split(' ')[0].split('x')[0]), int(tt.split(' ')[0].split('x')[1])
+
+            # 🎯 EKLENDİ: Panel eğim açısı manuel kontrole açıldı
+            st.session_state.panel_tilt = t_col2.number_input("Panel Eğimi (°)", value=st.session_state.panel_tilt,
+                                                              min_value=0, max_value=90, step=1)
+
+            s_col1, s_col2 = st.columns(2)
+            # 🎯 EKLENDİ: Dizi aralığı ve çekme mesafesi (setback) kullanıcıya açıldı
+            row_spacing_val = s_col1.number_input("Dizi Mesafesi (m)", value=3.5, step=0.1, format="%.1f")
+            setback_val = s_col2.number_input("Çekme Mesafesi (m)", value=1.0, step=0.5, format="%.1f")
 
             if st.button("🚀 Hesapla ve Yerleştir", type="primary", use_container_width=True):
                 if not st.session_state.parsel_geojson:
@@ -429,9 +453,13 @@ else:
                         l_res = SolarLayoutEngine(
                             st.session_state.parsel_geojson["features"][0]["geometry"]).generate_layout(
                             panel_width=PANEL_LIBRARY[p_brand][p_model].get("width", 1.134),
-                            panel_height=PANEL_LIBRARY[p_brand][p_model].get("height", 2.279), setback=1.0,
-                            row_spacing=3.5, col_spacing=0.5, table_rows=t_r, table_cols=t_c)
-                        st.session_state.layout_data = l_res;
+                            panel_height=PANEL_LIBRARY[p_brand][p_model].get("height", 2.279),
+                            setback=setback_val,  # Sabit 1.0 yerine dinamik değer
+                            row_spacing=row_spacing_val,  # Sabit 3.5 yerine dinamik değer
+                            col_spacing=0.5,
+                            table_rows=t_r,
+                            table_cols=t_c)
+                        st.session_state.layout_data = l_res
                         st.rerun()
 
         if has_permission(st.session_state.user_role, "financials") and res_prod > 0:
