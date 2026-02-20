@@ -52,19 +52,32 @@ import time
 
 # 1. URL'DEN ANAHTARI YAKALA VE HAFIZAYA KAZI
 if "access_token" in st.query_params:
-    # URL'den anahtarı al ve kalıcı hafızaya (Session State) koy
-    st.session_state.supa_access = st.query_params["access_token"]
-    st.session_state.supa_refresh = st.query_params.get("refresh_token", "")
-
-    # 🎯 Kritik: Supabase'e "İşte anahtarım, bu oturumu hemen kur" de
+    token = st.query_params["access_token"]
     try:
-        supabase.auth.set_session(st.session_state.supa_access, st.session_state.supa_refresh)
-        # URL'yi temizle ve sayfayı tazele
-        st.query_params.clear()
-        time.sleep(0.3)
-        st.rerun()
+        # 1. Supabase'e bu token'ın kime ait olduğunu sor
+        user_resp = supabase.auth.get_user(token)
+
+        if user_resp and user_resp.user:
+            # 2. Kullanıcı geçerliyse hafızaya (Session State) kaydet
+            u = user_resp.user
+            st.session_state.logged_in = True
+            st.session_state.user_id = u.id
+            st.session_state.user_email = u.email
+            st.session_state.username = u.user_metadata.get('full_name', u.email.split('@')[0])
+
+            # 3. Rol bilgisini çek (Kritik!)
+            try:
+                role_query = supabase.table("users").select("role").eq("id", u.id).execute()
+                st.session_state.user_role = role_query.data[0].get("role", "Free") if role_query.data else "Free"
+            except:
+                st.session_state.user_role = "Free"
+
+            # 4. URL'yi temizle ve içeri fırlat!
+            st.query_params.clear()
+            time.sleep(0.2)
+            st.rerun()
     except Exception as e:
-        st.error(f"⚠️ Oturum Kurma Hatası: {e}")
+        st.error(f"Giriş anahtarı işlenemedi: {e}")
 
 # 2. HAFIZA KONTROLÜ (Sayfa her yenilendiğinde anahtarı tekrar cebine koy)
 if "supa_access" in st.session_state:
