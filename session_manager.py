@@ -48,7 +48,7 @@ def handle_session_limit():
         existing_session = response.data[0] if response.data else None
 
         if existing_session:
-            db_browser_id = existing_session.get('ip_address')  # Tablo yapısına göre UUID burada
+            db_browser_id = existing_session.get('ip_address')
             last_active_str = existing_session.get('last_active')
 
             try:
@@ -66,17 +66,23 @@ def handle_session_limit():
 
             # --- DURUM 2: FARKLI CİHAZ VE OTURUM TAZE (SERT KİLİT) ---
             elif time_diff < timedelta(minutes=LOCK_TIMEOUT_MIN):
-                # 🎯 KISIR DÖNGÜYÜ KIRAN NOKTA: İkinci kişiye 'Devral' butonu vermiyoruz!
                 st.error("🚫 **ERİŞİM REDDEDİLDİ:** Bu hesap şu an başka bir cihazda aktif olarak kullanılmaktadır.")
                 st.info(
                     f"Güvenlik nedeniyle aynı anda sadece tek bir oturuma izin verilir. Mevcut oturumun kapanmasını bekleyin veya {LOCK_TIMEOUT_MIN} dakika sonra tekrar deneyin.")
 
                 if st.button("🚪 Giriş Ekranına Dön", use_container_width=True):
+                    # 🎯 KRİTİK FİKS: Sadece state'i değil, Supabase oturumunu da tamamen siliyoruz
+                    try:
+                        supabase.auth.sign_out()
+                    except:
+                        pass
                     st.session_state.logged_in = False
+                    st.session_state.user_id = None
+                    st.session_state.page = 'analiz'  # Analiz ekranına (Landing Page) zorla döndür
                     st.rerun()
-                st.stop()  # Uygulamanın kalanını yüklemesini engeller
+                st.stop()
 
-            # --- DURUM 3: FARKLI CİHAZ AMA ÖNCEKİ OTURUM TERK EDİLMİŞ (>5 dk işlem yok) ---
+                # --- DURUM 3: FARKLI CİHAZ AMA ÖNCEKİ OTURUM TERK EDİLMİŞ ---
             else:
                 supabase.table('active_sessions').update({
                     'ip_address': current_browser_id,
@@ -85,7 +91,6 @@ def handle_session_limit():
                 return
 
         else:
-            # İlk kayıt
             new_data = {"user_id": user_id, "ip_address": current_browser_id, "last_active": now.isoformat()}
             supabase.table('active_sessions').upsert(new_data, on_conflict="user_id").execute()
 
