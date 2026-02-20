@@ -285,33 +285,39 @@ if not st.session_state.logged_in:
 
     import streamlit.components.v1 as components
 
+    # Bu kod, Streamlit iframe'inden dışarı sızıp ana tarayıcı penceresine müdahale eder
     components.html("""
-            <script>
-                function breakOut() {
-                    var targetWindow = window.top || window.parent || window;
-                    var hash = targetWindow.location.hash;
-                    if (hash && hash.includes("access_token=")) {
-                        // '#' işaretini '?' ile değiştir ve sayfayı ZORLA yenile
-                        var newUrl = targetWindow.location.origin + targetWindow.location.pathname + hash.replace('#', '?');
-                        targetWindow.location.href = newUrl; 
-                    }
-                }
-            </script>
-            <div id="bridge-container" style="display:none; flex-direction:column; justify-content:center; align-items:center; padding:30px; font-family:sans-serif; background-color:#f8f9fa; border-radius:10px; border:2px dashed #1a73e8; margin-top:20px;">
-                <h2 style="color:#2c3e50; margin-bottom:10px;">✅ Google Onayı Başarılı</h2>
-                <p style="color:#7f8c8d; margin-bottom:20px;">Platforma giriş yapmak için lütfen aşağıdaki butona tıklayın.</p>
-                <button onclick="breakOut()" style="background-color:#1a73e8; color:white; padding:12px 25px; border:none; border-radius:5px; font-weight:bold; font-size:16px; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <div id="bridge-card" style="display:none; flex-direction:column; align-items:center; justify-content:center; padding:40px; font-family:sans-serif; background:white; border-radius:12px; border:2px solid #e1e4e8; box-shadow:0 10px 25px rgba(0,0,0,0.1); margin:20px auto; max-width:500px; text-align:center;">
+                <div style="font-size:50px; margin-bottom:15px;">✅</div>
+                <h2 style="color:#1a202c; margin-bottom:10px; font-size:22px;">Google Onayı Başarılı!</h2>
+                <p style="color:#4a5568; margin-bottom:25px; line-height:1.5;">Hesabınız doğrulandı. Güvenli giriş işlemini tamamlamak için aşağıdaki butona tıklayın.</p>
+                <button onclick="forceRedirect()" style="background-color:#1a73e8; color:white; padding:15px 35px; border:none; border-radius:8px; font-weight:bold; font-size:18px; cursor:pointer; width:100%; transition:background 0.3s ease;">
                     🚀 Platforma Giriş Yap
                 </button>
             </div>
+
             <script>
-                // Eğer URL'de token varsa kutuyu göster
-                var targetWindow = window.top || window.parent || window;
-                if (targetWindow.location.hash.includes("access_token=")) {
-                    document.getElementById('bridge-container').style.display = 'flex';
+                function forceRedirect() {
+                    // Tarayıcının en üst penceresine (Adres Çubuğuna) ulaş
+                    var win = window.top || window.parent || window;
+                    var currentHash = win.location.hash;
+
+                    if (currentHash && currentHash.includes("access_token=")) {
+                        // '#' işaretini '?' yaparak Python'ın okuyabileceği hale getir
+                        var cleanUrl = win.location.origin + win.location.pathname + currentHash.replace('#', '?');
+
+                        // Tarayıcıyı bu yeni URL'ye zorla yönlendir
+                        win.location.replace(cleanUrl);
+                    }
+                }
+
+                // URL'de token varsa kartı göster
+                var hashCheck = (window.top || window.parent || window).location.hash;
+                if (hashCheck.includes("access_token=")) {
+                    document.getElementById('bridge-card').style.display = 'flex';
                 }
             </script>
-        """, height=250)
+        """, height=350)
 
 elif st.session_state.page == 'profil':
     show_profile_page()
