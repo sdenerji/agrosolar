@@ -244,10 +244,8 @@ with st.sidebar:
         else:
             st.warning("🔒 Pro paket gereklidir.")
 
-    st.divider()
-    st.caption("Mühendislik ve Veri Güvenliği")
-    st.sidebar.page_link("https://www.sdenerji.com/gizlilik-politikasi/", label="⚖️ Gizlilik Politikası", icon="📜")
-    st.sidebar.page_link("https://www.sdenerji.com/kullanim-sartlari/", label="🛡️ Kullanım Şartları", icon="📑")
+
+
 
 # --------------------------------------------------------------------------
 # 🎯 SAYFA AKIŞI (ROUTING)
