@@ -1,10 +1,13 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from shapely.geometry import shape, Polygon, MultiPolygon
+from shapely.geometry import shape, Polygon, MultiPolygon, Point
 import math
 from gis_service import fetch_srtm_elevation_data
 from pyproj import Transformer
+import os
+import json
+from shapely.ops import transform
 
 
 # --- 🌐 KOORDİNAT DÖNÜŞÜM MOTORU ---
@@ -281,6 +284,54 @@ def generate_parsel_plot(geojson_data, layout_data=None):
         print(f"Çizim Hatası: {e}")
         return None
 
+
+# --- ⚡ ŞEBEKE (TEİAŞ) MESAFE HESAPLAMA MOTORU ---
+def get_nearest_grid_distance(lat, lon):
+    """
+    Kullanıcı konumu ile en yakın TEİAŞ hattı/trafosu arasındaki en kısa mesafeyi hesaplar.
+    Mühendislik hassasiyeti için WGS84'ten dinamik UTM metrik sistemine projeksiyon yapar.
+    """
+    try:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        geojson_path = os.path.join(base_dir, "data", "sebeke_verisi.geojson")
+
+        if not os.path.exists(geojson_path):
+            return None, "Şebeke verisi bulunamadı"
+
+        with open(geojson_path, 'r', encoding='utf-8') as f:
+            grid_data = json.load(f)
+
+        # Türkiye için dinamik UTM epsg kodunu bul (Örn: 32636) ve metre cinsine çevirici oluştur
+        utm_epsg = get_utm_zone_epsg(lon, "ITRF")
+        project_to_meters = Transformer.from_crs("EPSG:4326", f"EPSG:{utm_epsg}", always_xy=True).transform
+
+        # Kullanıcının tıkladığı noktayı metreye çevir
+        user_point = Point(lon, lat)
+        user_point_m = transform(project_to_meters, user_point)
+
+        min_dist = float('inf')
+        nearest_name = "Bilinmeyen Hat/TM"
+
+        # Tüm şebeke verisini tara ve en yakını bul
+        for feature in grid_data.get('features', []):
+            if 'geometry' not in feature: continue
+
+            geom = shape(feature['geometry'])
+            geom_m = transform(project_to_meters, geom)
+            dist = user_point_m.distance(geom_m)
+
+            if dist < min_dist:
+                min_dist = dist
+                props = feature.get('properties', {})
+                nearest_name = props.get('name') or props.get('Name') or props.get('ad') or "İsimsiz Hat/TM"
+
+        if min_dist == float('inf'):
+            return None, "Yakında şebeke bulunamadı"
+
+        return min_dist, nearest_name
+    except Exception as e:
+        print(f"Mesafe Hesaplama Hatası: {e}")
+        return None, "Hesaplama Hatası"
 
 # --- YARDIMCILAR ---
 def get_shading_metrics(df):

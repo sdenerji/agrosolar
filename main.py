@@ -23,7 +23,7 @@ from calculations import (
     calculate_geodesic_area, calculate_bankability_metrics, generate_horizon_plot,
     generate_earnings_graph, generate_parsel_plot, get_shading_metrics,
     evaluate_shading_suitability, interpret_shading, get_suitability_badge,
-    smart_fix_coordinates
+    smart_fix_coordinates, get_nearest_grid_distance
 )
 from equipment_db import PANEL_LIBRARY, INVERTER_LIBRARY
 from ges_engine import perform_string_analysis
@@ -400,6 +400,19 @@ else:
         k1, k2 = st.columns(2);
         k1.metric("Rakım", f"{rakim} m");
         k2.metric("Eğim", f"%{egim}")
+
+        grid_dist, grid_name = get_nearest_grid_distance(st.session_state.lat, st.session_state.lon)
+        if grid_dist is not None:
+            # 1000 metreden büyükse KM, küçükse Metre yazdır
+            dist_str = f"{grid_dist / 1000:.2f} km" if grid_dist > 1000 else f"{int(grid_dist)} m"
+            st.markdown(f"""
+                    <div style="background-color: #e2f0fb; padding: 10px; border-radius: 5px; border: 1px solid #b6d4fe; margin-bottom: 10px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                        <div style="font-size: 1rem; color: #084298; font-weight: bold;">⚡ Şebekeye En Kısa Mesafe</div>
+                        <div style="font-weight: bold; font-size: 1.4rem; color: #052c65; margin: 5px 0;">{dist_str}</div>
+                        <div style="font-size: 0.8rem; color: #444;">📍 {grid_name}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
         st.markdown(
             f"""<div style="display: flex; gap: 10px; margin-bottom: 10px;"><div style="flex:1; padding: 10px; border-radius: 5px; background-color: {'#d4edda' if s_col == 'green' else '#fff3cd' if s_col == 'orange' else '#f8d7da'}; border: 1px solid {s_col}; text-align: center;"><div style="font-size: 1.2rem;">{s_icon}</div><div style="font-weight: bold; font-size: 0.9rem; color: {s_col};">Eğim: {s_msg}</div></div><div style="flex:1; padding: 10px; border-radius: 5px; background-color: {'#d4edda' if a_col == 'green' else '#fff3cd' if a_col == 'orange' else '#f8d7da'}; border: 1px solid {a_col}; text-align: center;"><div style="font-size: 1.2rem;">{a_icon}</div><div style="font-weight: bold; font-size: 0.9rem; color: {a_col};">Cephe: {baki}</div></div></div>""",
             unsafe_allow_html=True)
