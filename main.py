@@ -55,34 +55,36 @@ import time
 
 # 1. URL'DEKİ ANAHTARI CEBE KOY (Mavi butona tıklandığında burası çalışır)
 q_params = st.query_params
-if "access_token" in q_params:
-    token = q_params["access_token"]
+if "access_token" in st.query_params:
+    token = st.query_params["access_token"]
     try:
-        # 1. Supabase'e bu token'ın kime ait olduğunu sor
+        # 1. Supabase'e "Bu anahtar kimin?" diye soruyoruz
         user_resp = get_supabase().auth.get_user(token)
 
         if user_resp and user_resp.user:
-            # 2. Kullanıcı geçerliyse hafızaya (Session State) kaydet
+            # 2. Onay gelirse tüm kilitleri açıyoruz
             u = user_resp.user
             st.session_state.logged_in = True
             st.session_state.user_id = u.id
             st.session_state.user_email = u.email
             st.session_state.username = u.user_metadata.get('full_name', u.email.split('@')[0])
 
-            # 3. Rol bilgisini çek (Pro/Ultra paket yetkileri için)
+            # 3. Rol yetkilerini (Pro/Ultra) veritabanından çekiyoruz
             try:
-                role_query = get_supabase().table("users").select("role").eq("id", u.id).execute()
-                st.session_state.user_role = role_query.data[0].get("role", "Free") if role_query.data else "Free"
+                role_q = get_supabase().table("users").select("role").eq("id", u.id).execute()
+                st.session_state.user_role = role_q.data[0].get("role", "Free") if role_q.data else "Free"
             except:
                 st.session_state.user_role = "Free"
 
-            # 4. URL'yi temizle ve içeri fırlat!
+            # 4. URL'deki karmaşayı temizleyip ANALİZ DASHBOARD'una giriyoruz!
             st.query_params.clear()
-            st.success("✅ Giriş başarılı, yönlendiriliyorsunuz...")
+            st.success("✅ Giriş onaylandı, SD Enerji Analiz App açılıyor...")
             time.sleep(0.5)
             st.rerun()
+
     except Exception as e:
-        st.error(f"Giriş anahtarı işlenemedi: {e}")
+        # Bir sorun olursa gizli kalmasın, ekrana basıyoruz
+        st.error(f"❌ Giriş anahtarı işlenirken hata oluştu: {str(e)}")
 
 # 2. MEVCUT OTURUMU KORU (Sayfa her yenilendiğinde burası kontrol eder)
 if not st.session_state.get('logged_in', False):
