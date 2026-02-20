@@ -44,40 +44,56 @@ except ImportError:
 matplotlib.use('Agg')
 
 # --------------------------------------------------------------------------
-# 🎯 SUPABASE & GOOGLE OTURUM YAKALAYICI (YENİ EKLENEN KISIM)
+# 🎯 SUPABASE & GOOGLE OTURUM YAKALAYICI
 # --------------------------------------------------------------------------
+import streamlit.components.v1 as components
+
 supabase = get_supabase()
 
+# 1. GÖRÜNMEZ YAKALAYICI: Streamlit'in okuyamadığı '#' işaretini '?' işaretine çevirir
+components.html("""
+<script>
+    if (window.parent.location.hash && window.parent.location.hash.includes("access_token")) {
+        var hash = window.parent.location.hash.substring(1); // '#' işaretini at
+        window.parent.location.href = window.parent.location.origin + window.parent.location.pathname + "?" + hash;
+    }
+</script>
+""", height=0, width=0)
 
+# 2. OTURUMU AÇMA: Artık Streamlit URL'deki token'ı okuyabilir
+query_params = st.query_params
+if "access_token" in query_params and "refresh_token" in query_params:
+    try:
+        # Supabase'e "İşte anahtar, kapıyı aç" diyoruz
+        supabase.auth.set_session(query_params["access_token"], query_params["refresh_token"])
+        st.query_params.clear()  # URL'deki çirkin uzun yazıları temizle
+        st.rerun()  # Sayfayı yenile ve analiz ekranına geç!
+    except Exception as e:
+        print(f"Oturum yakalama hatası: {e}")
+
+
+# 3. MEVCUT OTURUM KONTROLÜ
 def check_active_session():
-    """Supabase'deki mevcut oturumu kontrol eder"""
     try:
         session = supabase.auth.get_session()
         if session and session.user:
             return session.user
-    except Exception as e:
-        print(f"Session Error: {e}")
-    return None
+    except:
+        return None
 
 
-# Sayfa ilk yüklendiğinde oturum var mı diye kontrol et
 current_user = check_active_session()
 
 if current_user:
     st.session_state.logged_in = True
     st.session_state.user_id = current_user.id
     st.session_state.user_email = current_user.email
-    # Google ismini çekme (varsa)
     if 'full_name' in current_user.user_metadata:
         st.session_state.username = current_user.user_metadata['full_name']
 
-    # Kullanıcı rolünü veritabanından çek (veya varsayılan ata)
     try:
         user_data = supabase.table("users").select("role").eq("id", current_user.id).execute()
-        if user_data.data:
-            st.session_state.user_role = user_data.data[0].get("role", "Free")
-        else:
-            st.session_state.user_role = "Free"  # Yeni Google kaydı ise varsayılan rol
+        st.session_state.user_role = user_data.data[0].get("role", "Free") if user_data.data else "Free"
     except:
         st.session_state.user_role = "Free"
 
