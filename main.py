@@ -341,6 +341,17 @@ else:
         * **Gölge ve Ufuk Analizi:** Çevresel faktörlerin üretim verimliliğine etkisinin simüle edilmesi.
         * **Teknik Raporlama:** Yapay zeka destekli, banka onaylı detaylı fizibilite ve verimlilik raporlarının oluşturulması.
         """ )
+    st.markdown("---")
+
+    # 3. KRİTİK: Google'ın "Göremiyorum" dediği linkleri sayfanın tam ortasına, devasa koyuyoruz
+    st.subheader("⚖️ Yasal Bilgilendirmeler")
+    f_col1, f_col2 = st.columns(2)
+    with f_col1:
+        st.page_link("https://www.sdenerji.com/gizlilik-politikasi/", label="Gizlilik Politikası", icon="📜")
+    with f_col2:
+        st.page_link("https://www.sdenerji.com/kullanim-sartlari/", label="Kullanım Şartları", icon="🛡️")
+
+    st.markdown("---")
     render_announcement_banner()
     st.divider()
 
