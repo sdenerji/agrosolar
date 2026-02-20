@@ -332,8 +332,15 @@ elif st.session_state.page == '3d_analiz':
 else:
     # --- ANA ANALİZ EKRANI (DASHBOARD) ---
     st.title("⚡ SD Enerji Analiz App")
-    st.info(
-        "SD Enerji Analiz App; profesyonel GES tasarımı, 3D arazi modelleme ve teknik raporlama sunan bir mühendislik platformudur.")
+    st.markdown("""
+        ### 🚀 Profesyonel GES Tasarım ve Analiz Platformu
+        **SD Enerji Analiz App**; mühendislik ve enerji yatırım süreçlerini dijitalleştirmek amacıyla geliştirilmiş kapsamlı bir platformdur. 
+        Platformumuz kullanıcılara şu temel mühendislik çözümlerini sunar:
+        * **Profesyonel GES Tasarımı:** Güneş panellerinin araziye en verimli şekilde yerleştirilmesi ve kapasite analizi.
+        * **3D Arazi Modelleme:** SRTM verileri ile arazinin dijital ikizinin oluşturulması, eğim ve bakı analizleri.
+        * **Gölge ve Ufuk Analizi:** Çevresel faktörlerin üretim verimliliğine etkisinin simüle edilmesi.
+        * **Teknik Raporlama:** Yapay zeka destekli, banka onaylı detaylı fizibilite ve verimlilik raporlarının oluşturulması.
+        """)
     render_announcement_banner()
     st.divider()
 
