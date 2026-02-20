@@ -170,21 +170,22 @@ with st.sidebar:
                         <div style="color:#155724; background-color:#d4edda; border:1px solid #c3e6cb; padding:8px; border-radius:5px; margin-bottom:10px; font-family:sans-serif; font-size:13px; font-weight:bold;">
                             ✅ Google Doğrulandı
                         </div>
-                        <button onclick="finishLogin()" style="background-color:#1a73e8; color:white; padding:10px; border:none; border-radius:5px; font-weight:bold; cursor:pointer; width:100%; font-family:sans-serif; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <a id="login-link" href="#" target="_top" style="display:inline-block; background-color:#1a73e8; color:white; padding:10px; border:none; border-radius:5px; font-weight:bold; cursor:pointer; width:100%; font-family:sans-serif; text-decoration:none; box-sizing:border-box; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                             🚀 Platforma Geç
-                        </button>
+                        </a>
                     </div>
+
                     <script>
                         var win = window.top || window.parent || window;
-                        // URL'de token varsa bu menüyü göster
-                        if (win.location.hash.includes("access_token=")) {
-                            document.getElementById('finish-login').style.display = 'block';
-                        }
+                        var currentHash = win.location.hash;
 
-                        // Tıklayınca '# 'yi '?' yapıp içeri al
-                        function finishLogin() {
-                            var newUrl = win.location.origin + win.location.pathname + win.location.hash.replace('#', '?');
-                            win.location.assign(newUrl);
+                        // URL'de token varsa bu menüyü göster ve Linki ayarla
+                        if (currentHash && currentHash.includes("access_token=")) {
+                            document.getElementById('finish-login').style.display = 'block';
+
+                            // # işaretini ? yap ve bu adresi linkin içine (href) yerleştir
+                            var cleanUrl = win.location.origin + win.location.pathname + currentHash.replace('#', '?');
+                            document.getElementById('login-link').href = cleanUrl;
                         }
                     </script>
                 """, height=120)
