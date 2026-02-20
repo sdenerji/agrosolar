@@ -32,6 +32,7 @@ from reports import generate_full_report
 from profile_page import show_profile_page
 from user_config import ROLE_PERMISSIONS, has_permission
 from session_manager import handle_session_limit
+from supabase import create_client
 from user_service import check_and_update_subscription
 
 try:
@@ -43,9 +44,46 @@ except ImportError:
 matplotlib.use('Agg')
 
 # --------------------------------------------------------------------------
+# 🎯 SUPABASE & GOOGLE OTURUM YAKALAYICI (YENİ EKLENEN KISIM)
+# --------------------------------------------------------------------------
+supabase = get_supabase()
+
+
+def check_active_session():
+    """Supabase'deki mevcut oturumu kontrol eder"""
+    try:
+        session = supabase.auth.get_session()
+        if session and session.user:
+            return session.user
+    except Exception as e:
+        print(f"Session Error: {e}")
+    return None
+
+
+# Sayfa ilk yüklendiğinde oturum var mı diye kontrol et
+current_user = check_active_session()
+
+if current_user:
+    st.session_state.logged_in = True
+    st.session_state.user_id = current_user.id
+    st.session_state.user_email = current_user.email
+    # Google ismini çekme (varsa)
+    if 'full_name' in current_user.user_metadata:
+        st.session_state.username = current_user.user_metadata['full_name']
+
+    # Kullanıcı rolünü veritabanından çek (veya varsayılan ata)
+    try:
+        user_data = supabase.table("users").select("role").eq("id", current_user.id).execute()
+        if user_data.data:
+            st.session_state.user_role = user_data.data[0].get("role", "Free")
+        else:
+            st.session_state.user_role = "Free"  # Yeni Google kaydı ise varsayılan rol
+    except:
+        st.session_state.user_role = "Free"
+
+# --------------------------------------------------------------------------
 # 🎯 KRİTİK: HATA ÖNLEYİCİ BAŞLATMA (INITIALIZATION)
 # --------------------------------------------------------------------------
-# AttributeError: parsel_geojson hatasını engellemek için tüm değişkenler mühürlenir.
 if 'initialized' not in st.session_state:
     st.session_state.initialized = True
     defaults = {
@@ -72,7 +110,8 @@ if 'selected_inverter_brand' not in st.session_state:
 # --------------------------------------------------------------------------
 st.set_page_config(page_title="SD Enerji", layout="wide")
 hide_header_footer()
-handle_session_limit()
+if st.session_state.logged_in:
+    handle_session_limit()
 
 
 def update_from_input():
@@ -100,14 +139,32 @@ with st.sidebar:
         if c1.button("🏠 Analiz", use_container_width=True): st.session_state.page = 'analiz'; st.rerun()
         if c2.button("👤 Profil", use_container_width=True): st.session_state.page = 'profil'; st.rerun()
         if st.button("Çıkış Yap", type="primary", use_container_width=True):
-            get_supabase().auth.sign_out();
-            st.session_state.logged_in = False;
+            supabase.auth.sign_out()
+            st.session_state.logged_in = False
             st.rerun()
     else:
-        show_auth_pages(get_supabase());
-        render_google_login()
+        # Eğer giriş yapılmamışsa sadece Login Formunu Göster
+        show_auth_pages(supabase)
+
+        # Google Login Butonu için Özel Blok
+        st.markdown("---")
+        st.markdown("<p style='text-align:center; font-size:12px; color:gray;'>Veya şununla devam et:</p>",
+                    unsafe_allow_html=True)
+        if st.button("🔵 Google ile Giriş Yap", use_container_width=True):
+            try:
+                # 🎯 BURASI ÇOK ÖNEMLİ: URL'nin sonunda o karmaşık anahtarı değil, temiz adresi tutacak
+                res = supabase.auth.sign_in_with_oauth({
+                    "provider": "google",
+                    "options": {
+                        "redirect_to": "https://analiz.sdenerji.com"
+                    }
+                })
+            except Exception as e:
+                st.error(f"Google bağlantı hatası: {e}")
 
     st.divider()
+
+    # Menünün Geri Kalanı (Değişiklik Yok)
     st.markdown("### 📍 Konum & Parsel")
     t_m, t_p = st.tabs(["📌 Manuel", "🗺️ Parsel"])
 
@@ -116,7 +173,6 @@ with st.sidebar:
         st.number_input("Boylam", key='input_lon', format="%.6f", on_change=update_from_input)
 
     with t_p:
-        # 🗺️ TKGM REHBERİ
         with st.expander("❓ GeoJSON Nasıl İndirilir?", expanded=False):
             st.markdown("""
             1. **[TKGM Parsel Sorgu](https://parselsorgu.tkgm.gov.tr/)** sitesine gidin.
@@ -161,21 +217,29 @@ with st.sidebar:
     st.caption("Mühendislik ve Veri Güvenliği")
     st.sidebar.page_link("https://www.sdenerji.com/gizlilik-politikasi/", label="⚖️ Gizlilik Politikası", icon="📜")
     st.sidebar.page_link("https://www.sdenerji.com/kullanim-sartlari/", label="🛡️ Kullanım Şartları", icon="📑")
+
 # --------------------------------------------------------------------------
-# 🎯 SAYFA AKIŞI (ROUTING) - HATA DÜZELTİLDİ
+# 🎯 SAYFA AKIŞI (ROUTING)
 # --------------------------------------------------------------------------
-if st.session_state.page == 'profil':
+if not st.session_state.logged_in:
+    # Kullanıcı giriş yapmamışsa sadece bir karşılama ekranı göster
+    st.title("⚡ SD Enerji Analiz App")
+    st.info("Sisteme erişmek için sol taraftaki menüden giriş yapınız.")
+    st.markdown("---")
+    st.markdown(
+        "SD Enerji Analiz App; profesyonel GES tasarımı, 3D arazi modelleme ve teknik raporlama sunan bir mühendislik platformudur.")
+
+elif st.session_state.page == 'profil':
     show_profile_page()
 
 elif st.session_state.page == 'coord_tool':
+    # Koordinat Sayfası Kodları (Değişiklik Yok)
     st.title("🌐 Koordinat Dönüşüm İstasyonu (Ultra)")
     st.markdown("---")
-
     st.info(
         "💡 Nokta listesini (NCN, CSV, TXT) veya GeoJSON dosyasını yükleyin. Sistem koordinatlarınızı otomatik tanıyacaktır.")
     ext_file = st.file_uploader("Dosya Yükle", type=["json", "geojson", "ncn", "csv", "txt"])
 
-    # Otomatik tespit ve bilgilendirme değişkenleri
     is_detected = False
     detected_sys = "WGS84 (GPS/Coğrafi)"
     points_to_convert = []
@@ -195,11 +259,8 @@ elif st.session_state.page == 'coord_tool':
                 points_to_convert = df_temp.values.tolist()
 
             if points_to_convert:
-                # 🧠 AKILLI DÜZELTME: X-Y tersliğini Türkiye sınırlarına göre çöz
                 points_to_convert = smart_fix_coordinates(points_to_convert)
                 st.success(f"📂 {len(points_to_convert)} adet nokta okundu.")
-
-                # 🔍 OTOMATİK SİSTEM TESPİTİ
                 first_val = points_to_convert[0][0]
                 if abs(first_val) < 100:
                     detected_sys = "WGS84 (GPS/Coğrafi)"
@@ -208,13 +269,11 @@ elif st.session_state.page == 'coord_tool':
                 else:
                     detected_sys = "ITRF (UTM)"
                     st.warning("📂 Metrik koordinatlar algılandı. Lütfen giriş sistemini (ITRF/ED50) teyit edin.")
-
         except Exception as e:
             st.error(f"❌ Okuma hatası: {str(e)}")
 
     col_set1, col_set2 = st.columns(2)
     with col_set1:
-        # 🎯 HATA ÖNLEME: Eğer coğrafi koordinat algılandıysa seçim pasifize olur
         input_sys = st.selectbox("Giriş Sistemi:", ["WGS84 (GPS/Coğrafi)", "ITRF (UTM)", "ED50 (UTM)"],
                                  index=0 if detected_sys == "WGS84 (GPS/Coğrafi)" else 1,
                                  disabled=is_detected)
@@ -228,14 +287,11 @@ elif st.session_state.page == 'coord_tool':
             in_epsg = 4326 if "WGS84" in input_sys else get_utm_zone_epsg(st.session_state.lon, input_sys.split(' ')[0])
             out_epsg = 4326 if "WGS84" in target_sys else get_utm_zone_epsg(st.session_state.lon,
                                                                             target_sys.split(' ')[0])
-
             res_points = transform_points(points_to_convert, in_epsg, out_epsg)
             if res_points:
-                # 📊 TABLO DÜZENLEME: Kullanıcıya en net dille kolonları basıyoruz
                 y_label = "Boylam" if out_epsg == 4326 else "Sağa (Y) Değeri"
                 x_label = "Enlem" if out_epsg == 4326 else "Yukarı (X) Değeri"
                 df_res = pd.DataFrame(res_points, columns=[y_label, x_label])
-
                 st.subheader(f"📍 Dönüşüm Sonuçları (EPSG:{out_epsg})")
                 st.table(df_res.head(15))
                 st.download_button("📥 Tam Listeyi CSV İndir", df_res.to_csv(index=False), "sd_enerji_donusum.csv",
@@ -248,16 +304,16 @@ elif st.session_state.page == 'coord_tool':
 
 elif st.session_state.page == '3d_analiz':
     if has_permission(st.session_state.user_role, "3d_precision_data"):
-
         show_3d_page()
 
 else:
     # --- ANA ANALİZ EKRANI (DASHBOARD) ---
-
     st.title("⚡ SD Enerji Analiz App")
     st.info(
         "SD Enerji Analiz App; profesyonel GES tasarımı, 3D arazi modelleme ve teknik raporlama sunan bir mühendislik platformudur.")
     render_announcement_banner()
+    st.divider()
+
     col1, col2 = st.columns([2, 1])
 
     rakim, egim, baki = calculate_slope_aspect(st.session_state.lat, st.session_state.lon)
@@ -286,12 +342,14 @@ else:
                             auto_locate=(not st.session_state.map_initialized) and (
                                         st.session_state.parsel_geojson is None))
         st.session_state.map_initialized = True
-        if st.toggle("⚡ Şebekeyi Göster") and has_permission(st.session_state.user_role,
-                                                             "tm_proximity"): add_teias_layer(m)
+        if st.toggle("⚡ Şebekeyi Göster") and has_permission(st.session_state.user_role, "tm_proximity"):
+            add_teias_layer(m)
+
         add_parsel_layer(m, st.session_state.parsel_geojson, st.session_state.analysis_results,
                          st.session_state.layout_data)
         add_panel_layer(m, st.session_state.layout_data, st.session_state.selected_panel_brand,
                         st.session_state.selected_panel_model)
+
         out = st_folium(m, height=550, width="100%", returned_objects=["last_clicked"], key="main_map")
         if out and out['last_clicked']:
             if abs(out['last_clicked']['lat'] - st.session_state.lat) > 0.0001:
@@ -317,18 +375,14 @@ else:
             st.session_state.selected_panel_model = p_model
             i_brand = st.selectbox("İnverter:", list(INVERTER_LIBRARY.keys()));
             sel_i_model = st.selectbox("Model:", list(INVERTER_LIBRARY[i_brand].keys()))
-
-            # NameError: i_model hatası sel_i_model ile giderildi
             st.session_state.selected_inverter_model = sel_i_model
 
             tt = st.selectbox("Sehpa", ["2x20 (40 Panel)", "2x10 (20 Panel)", "2x5 (10 Panel)", "1x5 (5 Panel)"],
                               index=2)
             t_r, t_c = int(tt.split(' ')[0].split('x')[0]), int(tt.split(' ')[0].split('x')[1])
 
-            # 🎯 KULLANICI BİLGİLENDİRME: HESAPLA BUTONU
             if st.button("🚀 Hesapla ve Yerleştir", type="primary", use_container_width=True):
                 if not st.session_state.parsel_geojson:
-                    # Kullanıcıyı yönlendiren hata mesajı
                     st.error("⚠️ Önce bir parsel yüklemelisiniz! Sol menüdeki '🗺️ Parsel' sekmesini kullanın.")
                 elif not has_permission(st.session_state.user_role, "panel_placement"):
                     st.warning("🔒 Bu özellik Professional pakete dahildir.")
@@ -353,9 +407,9 @@ else:
                     "ai_summary"] = generate_smart_report_summary(rep_d)
                 st.session_state.pdf_bytes = generate_full_report(rep_d);
                 st.success("🤖 Rapor Hazır!")
-            if "pdf_bytes" in st.session_state: st.download_button("📥 PDF İndir", st.session_state.pdf_bytes,
-                                                                   "rapor.pdf", "application/pdf",
-                                                                   use_container_width=True)
+            if "pdf_bytes" in st.session_state:
+                st.download_button("📥 PDF İndir", st.session_state.pdf_bytes, "rapor.pdf", "application/pdf",
+                                   use_container_width=True)
 
     # 🏔️ Ufuk ve Gölge Analizi Grafiği
     with col1:

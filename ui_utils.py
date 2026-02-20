@@ -20,29 +20,42 @@ def hide_header_footer():
 
 
 def render_google_login():
-    """Google giriş butonu"""
-    auth_url = "#"
-    try:
-        if "supabase" in st.secrets:
-            base_url = st.secrets["supabase"]["url"]
-            auth_url = f"{base_url}/auth/v1/authorize?provider=google"
-    except:
-        pass
+    """Google giriş butonu - Supabase Python SDK ile yenilendi"""
 
-    google_html = f'''
-    <div style="display: flex; flex-direction: column; align-items: center; width: 100%; margin-top: 10px;">
+    # Supabase objesini db_base'den çekiyoruz
+    try:
+        from db_base import get_supabase
+        supabase = get_supabase()
+    except Exception as e:
+        st.error(f"Veritabanı bağlantı hatası: {e}")
+        return
+
+    st.markdown("""
         <div style="display: flex; align-items: center; width: 100%; margin: 15px 0;">
             <div style="flex-grow: 1; border-top: 1px solid #dfe1e5;"></div>
             <div style="padding: 0 10px; color: #70757a; font-size: 14px;">veya</div>
             <div style="flex-grow: 1; border-top: 1px solid #dfe1e5;"></div>
         </div>
-        <a href="{auth_url}" target="_self" style="display: flex; align-items: center; justify-content: center; background-color: white; color: #3c4043; border: 1px solid #dadce0; border-radius: 4px; padding: 10px 16px; font-size: 14px; font-weight: 500; text-decoration: none; width: 100%; cursor: pointer;">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" style="width: 18px; margin-right: 10px;">
-            Continue with Google
-        </a>
-    </div>
-    '''
-    st.markdown(google_html, unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
+
+    # Streamlit'in kendi butonunu kullanıyoruz (Güvenli State Yönetimi için şart)
+    if st.button("🔵 Google ile Güvenli Giriş Yap", use_container_width=True):
+        try:
+            # Doğrudan SDK üzerinden tetikleme yapılıyor
+            res = supabase.auth.sign_in_with_oauth({
+                "provider": "google",
+                "options": {
+                    "redirect_to": "https://analiz.sdenerji.com"  # Canlı URL
+                }
+            })
+
+            # SDK bize yönlendirme linkini veriyor, biz de Streamlit'e "Oraya Git" diyoruz
+            if res.url:
+                # JavaScript ile güvenli yönlendirme (URL'yi yeni sekmede açmaz, mevcut sekmeyi yönlendirir)
+                st.markdown(f'<meta http-equiv="refresh" content="0;url={res.url}">', unsafe_allow_html=True)
+
+        except Exception as e:
+            st.error(f"Google bağlantı hatası: {e}")
 
 
 def render_analysis_box(label, status, color):
