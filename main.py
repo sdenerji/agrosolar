@@ -350,7 +350,7 @@ else:
 
 
     render_announcement_banner()
-    st.divider()
+    #st.divider()
 
     col1, col2 = st.columns([2, 1])
 
