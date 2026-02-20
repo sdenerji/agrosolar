@@ -170,7 +170,10 @@ with st.sidebar:
                         <div style="color:#155724; background-color:#d4edda; border:1px solid #c3e6cb; padding:8px; border-radius:5px; margin-bottom:10px; font-family:sans-serif; font-size:13px; font-weight:bold;">
                             ✅ Google Doğrulandı
                         </div>
-                        <a id="login-link" href="#" target="_top" style="display:inline-block; background-color:#1a73e8; color:white; padding:10px; border:none; border-radius:5px; font-weight:bold; cursor:pointer; width:100%; font-family:sans-serif; text-decoration:none; box-sizing:border-box; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <p style="font-family:sans-serif; font-size:11px; color:#666; margin-bottom:10px;">
+                            * Güvenlik duvarını aşmak için yeni sekmede açılacaktır.
+                        </p>
+                        <a id="login-link" href="#" target="_blank" style="display:inline-block; background-color:#1a73e8; color:white; padding:10px; border:none; border-radius:5px; font-weight:bold; cursor:pointer; width:100%; font-family:sans-serif; text-decoration:none; box-sizing:border-box; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                             🚀 Platforma Geç
                         </a>
                     </div>
@@ -188,7 +191,7 @@ with st.sidebar:
                             document.getElementById('login-link').href = cleanUrl;
                         }
                     </script>
-                """, height=120)
+                """, height=150)
 
     st.divider()
 
