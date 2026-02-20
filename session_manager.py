@@ -4,8 +4,10 @@ from datetime import datetime, timedelta
 from db_base import get_supabase
 import uuid
 
-# AYAR: Oturum kaç saniye hareketsiz kalırsa kapansın? (2 Saat = 7200 sn)
-SESSION_TIMEOUT_SEC = 7200
+# AYARLAR
+SESSION_TIMEOUT_SEC = 7200  # 2 Saat hareketsizlikten sonra kapanır
+LOCK_TIMEOUT_MIN = 5  # Son işlemden sonra kaç dakika 'Kilitli' kalsın?
+
 
 def check_timeout():
     if "last_active" not in st.session_state:
@@ -13,21 +15,17 @@ def check_timeout():
         return
 
     idle_time = time.time() - st.session_state.last_active
-
     if idle_time > SESSION_TIMEOUT_SEC:
-        st.warning("⏳ Uzun süre işlem yapmadığınız için oturumunuz sonlandırıldı.")
+        st.warning("⏳ Oturumunuz zaman aşımına uğradı.")
         try:
             get_supabase().auth.sign_out()
         except:
             pass
         st.session_state.logged_in = False
-        st.session_state.username = "Misafir"
-        st.session_state.user_id = None
-        time.sleep(2)
         st.rerun()
-        st.stop()
     else:
         st.session_state.last_active = time.time()
+
 
 def handle_session_limit():
     if not st.session_state.get("logged_in", False):
@@ -38,7 +36,6 @@ def handle_session_limit():
 
     check_timeout()
 
-    # 🎯 KRİTİK ÇÖZÜM: IP yerine her tarayıcıya/cihaza benzersiz bir "Mühür" (Browser ID) veriyoruz
     if "browser_id" not in st.session_state:
         st.session_state.browser_id = uuid.uuid4().hex
 
@@ -51,65 +48,46 @@ def handle_session_limit():
         existing_session = response.data[0] if response.data else None
 
         if existing_session:
-            # DB'de tablo yapısını bozmamak için 'ip_address' kolonuna eşsiz kimliği (uuid) kaydediyoruz
-            db_browser_id = existing_session.get('ip_address')
+            db_browser_id = existing_session.get('ip_address')  # Tablo yapısına göre UUID burada
             last_active_str = existing_session.get('last_active')
 
             try:
                 last_active_dt = datetime.fromisoformat(last_active_str.replace('Z', '+00:00'))
-                if last_active_dt.tzinfo:
-                    last_active_dt = last_active_dt.replace(tzinfo=None)
+                if last_active_dt.tzinfo: last_active_dt = last_active_dt.replace(tzinfo=None)
                 time_diff = now - last_active_dt
             except:
                 time_diff = timedelta(seconds=0)
 
-            # SENARYO A: Aynı tarayıcı penceresi
+            # --- DURUM 1: AYNI OTURUM ---
             if db_browser_id == current_browser_id:
-                supabase.table('active_sessions').update({
-                    'last_active': now.isoformat()
-                }).eq('user_id', user_id).execute()
+                supabase.table('active_sessions').update({'last_active': now.isoformat()}).eq('user_id',
+                                                                                              user_id).execute()
                 return
 
-            # SENARYO B: Farklı cihaz ama eski oturum (60 dakikadan eski)
-            elif time_diff > timedelta(minutes=60):
+            # --- DURUM 2: FARKLI CİHAZ VE OTURUM TAZE (SERT KİLİT) ---
+            elif time_diff < timedelta(minutes=LOCK_TIMEOUT_MIN):
+                # 🎯 KISIR DÖNGÜYÜ KIRAN NOKTA: İkinci kişiye 'Devral' butonu vermiyoruz!
+                st.error("🚫 **ERİŞİM REDDEDİLDİ:** Bu hesap şu an başka bir cihazda aktif olarak kullanılmaktadır.")
+                st.info(
+                    f"Güvenlik nedeniyle aynı anda sadece tek bir oturuma izin verilir. Mevcut oturumun kapanmasını bekleyin veya {LOCK_TIMEOUT_MIN} dakika sonra tekrar deneyin.")
+
+                if st.button("🚪 Giriş Ekranına Dön", use_container_width=True):
+                    st.session_state.logged_in = False
+                    st.rerun()
+                st.stop()  # Uygulamanın kalanını yüklemesini engeller
+
+            # --- DURUM 3: FARKLI CİHAZ AMA ÖNCEKİ OTURUM TERK EDİLMİŞ (>5 dk işlem yok) ---
+            else:
                 supabase.table('active_sessions').update({
                     'ip_address': current_browser_id,
                     'last_active': now.isoformat()
                 }).eq('user_id', user_id).execute()
                 return
 
-            # SENARYO C: ÇAKIŞMA (Farklı cihaz ve oturum taze) -> AFFETME AT!
-            else:
-                st.error("⚠️ **GÜVENLİK UYARISI:** Hesabınız şu an başka bir cihazda açık!")
-                st.warning("Veri güvenliği nedeniyle aynı anda sadece tek cihazdan/tarayıcıdan giriş yapabilirsiniz.")
-
-                col1, col2 = st.columns(2)
-                if col1.button("🚪 Buradan Çıkış Yap"):
-                    st.session_state.logged_in = False
-                    st.session_state.page = "analiz"
-                    st.rerun()
-
-                if col2.button("🚫 Diğerini Kapat ve Buradan Gir", type="primary"):
-                    supabase.table('active_sessions').update({
-                        'ip_address': current_browser_id,
-                        'last_active': now.isoformat()
-                    }).eq('user_id', user_id).execute()
-
-                    st.success("Oturum bu cihaza taşındı! Sayfa yenileniyor...")
-                    time.sleep(1)
-                    st.rerun()
-
-                st.stop()
-
         else:
-            # İlk Giriş
-            new_data = {
-                "user_id": user_id,
-                "ip_address": current_browser_id,
-                "last_active": now.isoformat()
-            }
+            # İlk kayıt
+            new_data = {"user_id": user_id, "ip_address": current_browser_id, "last_active": now.isoformat()}
             supabase.table('active_sessions').upsert(new_data, on_conflict="user_id").execute()
 
     except Exception as e:
-        print(f"Session Manager Hatası: {e}")
-        pass
+        print(f"Oturum Hatası: {e}")
