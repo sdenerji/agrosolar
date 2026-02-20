@@ -145,7 +145,7 @@ def update_from_map(clicked_lat, clicked_lon):
 # --------------------------------------------------------------------------
 with st.sidebar:
     if os.path.exists("assets/logo.png"): st.image("assets/logo.png", width="stretch")
-    st.markdown("<h2 style='text-align: center; margin-top: -15px;'>SD ENERJİ</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; margin-top: -15px;'>SD Enerji Analiz App</h2>", unsafe_allow_html=True)
     st.divider()
 
     if st.session_state.logged_in:
