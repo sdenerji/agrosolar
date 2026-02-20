@@ -20,15 +20,9 @@ def hide_header_footer():
 
 
 def render_google_login():
-    """Google giriş butonu - Orijinal görsel tasarımı ve yapısı korundu"""
-    auth_url = "#"
-    try:
-        if "supabase" in st.secrets:
-            base_url = st.secrets["supabase"]["url"]
-            # 🎯 Kritik Dokunuş: Yönlendirme adresi doğrudan URL'ye gömüldü
-            auth_url = f"{base_url}/auth/v1/authorize?provider=google&redirect_to=https://analiz.sdenerji.com"
-    except:
-        pass
+    """Google giriş butonu - Orijinal görsel tasarım geri getirildi"""
+    # 🎯 Kritik: Sizin orijinal Supabase adresiniz direkt gömüldü
+    auth_url = "https://crbpizylnliouefxkwxy.supabase.co/auth/v1/authorize?provider=google&redirect_to=https://analiz.sdenerji.com"
 
     google_html = f'''
     <div style="display: flex; flex-direction: column; align-items: center; width: 100%; margin-top: 10px;">
@@ -37,7 +31,7 @@ def render_google_login():
             <div style="padding: 0 10px; color: #70757a; font-size: 14px;">veya</div>
             <div style="flex-grow: 1; border-top: 1px solid #dfe1e5;"></div>
         </div>
-        <a href="{auth_url}" target="_self" style="display: flex; align-items: center; justify-content: center; background-color: white; color: #3c4043; border: 1px solid #dadce0; border-radius: 4px; padding: 10px 16px; font-size: 14px; font-weight: 500; text-decoration: none; width: 100%; cursor: pointer;">
+        <a href="{auth_url}" target="_self" style="display: flex; align-items: center; justify-content: center; background-color: white; color: #3c4043; border: 1px solid #dadce0; border-radius: 4px; padding: 10px 16px; font-size: 14px; font-weight: 500; text-decoration: none; width: 100%; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
             <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" style="width: 18px; margin-right: 10px;">
             Google ile Devam Et
         </a>

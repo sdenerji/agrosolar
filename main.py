@@ -50,24 +50,30 @@ import streamlit.components.v1 as components
 
 supabase = get_supabase()
 
-# 1. GÖRÜNMEZ YAKALAYICI: Streamlit'in okuyamadığı '#' işaretini '?' işaretine çevirir
+# --------------------------------------------------------------------------
+# 🎯 SUPABASE & GOOGLE OTURUM YAKALAYICI (GÜÇLENDİRİLMİŞ)
+# --------------------------------------------------------------------------
+import streamlit.components.v1 as components
+
+# 1. GÖRÜNMEZ YAKALAYICI: '#' işaretini anında '?' işaretine çevirir
 components.html("""
 <script>
-    if (window.parent.location.hash && window.parent.location.hash.includes("access_token")) {
-        var hash = window.parent.location.hash.substring(1); // '#' işaretini at
-        window.parent.location.href = window.parent.location.origin + window.parent.location.pathname + "?" + hash;
+    var hash = window.parent.location.hash;
+    if (hash && hash.includes("access_token=")) {
+        var newQuery = hash.replace('#', '?');
+        window.parent.location.replace(window.parent.location.origin + window.parent.location.pathname + newQuery);
     }
 </script>
 """, height=0, width=0)
 
-# 2. OTURUMU AÇMA: Artık Streamlit URL'deki token'ı okuyabilir
+# 2. OTURUMU AÇMA
 query_params = st.query_params
-if "access_token" in query_params and "refresh_token" in query_params:
+if "access_token" in query_params:
     try:
-        # Supabase'e "İşte anahtar, kapıyı aç" diyoruz
-        supabase.auth.set_session(query_params["access_token"], query_params["refresh_token"])
-        st.query_params.clear()  # URL'deki çirkin uzun yazıları temizle
-        st.rerun()  # Sayfayı yenile ve analiz ekranına geç!
+        supabase.auth.set_session(query_params["access_token"], query_params.get("refresh_token", ""))
+        st.query_params.clear() # URL'yi temizle
+        time.sleep(0.5)
+        st.rerun() # Analize Geç!
     except Exception as e:
         print(f"Oturum yakalama hatası: {e}")
 
@@ -162,21 +168,7 @@ with st.sidebar:
         # Eğer giriş yapılmamışsa sadece Login Formunu Göster
         show_auth_pages(supabase)
 
-        # Google Login Butonu için Özel Blok
-        st.markdown("---")
-        st.markdown("<p style='text-align:center; font-size:12px; color:gray;'>Veya şununla devam et:</p>",
-                    unsafe_allow_html=True)
-        if st.button("🔵 Google ile Giriş Yap", use_container_width=True):
-            try:
-                # 🎯 BURASI ÇOK ÖNEMLİ: URL'nin sonunda o karmaşık anahtarı değil, temiz adresi tutacak
-                res = supabase.auth.sign_in_with_oauth({
-                    "provider": "google",
-                    "options": {
-                        "redirect_to": "https://analiz.sdenerji.com"
-                    }
-                })
-            except Exception as e:
-                st.error(f"Google bağlantı hatası: {e}")
+        render_google_login()
 
     st.divider()
 
