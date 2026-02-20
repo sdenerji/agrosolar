@@ -333,6 +333,13 @@ else:
     # --- ANA ANALİZ EKRANI (DASHBOARD) ---
     st.title("SD Enerji Analiz App")
     st.markdown("""
+            <div style="background-color: #f8f9fa; padding: 10px; border-radius: 5px; text-align: center; border: 1px solid #dee2e6;">
+                <a href="https://www.sdenerji.com/gizlilik-politikasi/" target="_blank">Gizlilik Politikası</a> | 
+                <a href="https://www.sdenerji.com/kullanim-sartlari/" target="_blank">Kullanım Şartları</a>
+            </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("""
         ### Profesyonel GES Tasarım ve Analiz Platformu
         **SD Enerji Analiz App**; mühendislik ve enerji yatırım süreçlerini dijitalleştirmek amacıyla geliştirilmiş kapsamlı bir platformdur. 
         Platformumuz kullanıcılara şu temel mühendislik çözümlerini sunar:
@@ -343,15 +350,7 @@ else:
         """ )
     st.markdown("---")
 
-    # 3. KRİTİK: Google'ın "Göremiyorum" dediği linkleri sayfanın tam ortasına, devasa koyuyoruz
-    st.subheader("⚖️ Yasal Bilgilendirmeler")
-    f_col1, f_col2 = st.columns(2)
-    with f_col1:
-        st.page_link("https://www.sdenerji.com/gizlilik-politikasi/", label="Gizlilik Politikası", icon="📜")
-    with f_col2:
-        st.page_link("https://www.sdenerji.com/kullanim-sartlari/", label="Kullanım Şartları", icon="🛡️")
 
-    st.markdown("---")
     render_announcement_banner()
     st.divider()
 
