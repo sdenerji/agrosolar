@@ -25,7 +25,7 @@ def render_google_login():
     try:
         if "supabase" in st.secrets:
             base_url = st.secrets["supabase"]["url"]
-            # 🎯 Kritik Dokunuş: Yönlendirme adresi doğrudan URL'ye gömüldü.
+            # 🎯 Kritik Dokunuş: Yönlendirme adresi doğrudan URL'ye gömüldü
             auth_url = f"{base_url}/auth/v1/authorize?provider=google&redirect_to=https://analiz.sdenerji.com"
     except:
         pass
