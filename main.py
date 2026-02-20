@@ -228,7 +228,7 @@ with st.sidebar:
 # --------------------------------------------------------------------------
 # 🎯 SAYFA AKIŞI (ROUTING)
 # --------------------------------------------------------------------------
-if st.session_state.page == 'profil':
+if st.session_state.get('page') == 'profil' and st.session_state.logged_in:
     show_profile_page()
 
 elif st.session_state.page == 'coord_tool':
@@ -311,6 +311,9 @@ else:
     st.info(
         "SD Enerji Analiz App; profesyonel GES tasarımı, 3D arazi modelleme ve teknik raporlama sunan bir mühendislik platformudur.")
     render_announcement_banner()
+    if not st.session_state.logged_in:
+        st.warning("💡 Mühendislik araçlarını tam yetkiyle kullanmak için lütfen soldan giriş yapın.")
+
     st.divider()
 
     col1, col2 = st.columns([2, 1])
