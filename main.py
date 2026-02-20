@@ -131,21 +131,6 @@ hide_header_footer()
 if st.session_state.logged_in:
     handle_session_limit()
 
-import streamlit.components.v1 as components
-components.html(
-    """
-    <script>
-        var win = window.top || window.parent || window;
-        var hash = win.location.hash;
-        if (hash && hash.includes("access_token=")) {
-            var newUrl = win.location.origin + win.location.pathname + hash.replace('#', '?');
-            win.location.replace(newUrl);
-        }
-    </script>
-    """,
-    height=0, width=0
-)
-
 def update_from_input():
     st.session_state.lat, st.session_state.lon = st.session_state.input_lat, st.session_state.input_lon
 
@@ -177,8 +162,32 @@ with st.sidebar:
     else:
         # Eğer giriş yapılmamışsa sadece Login Formunu Göster
         show_auth_pages(supabase)
-
         render_google_login()
+        import streamlit.components.v1 as components
+
+        components.html("""
+                    <div id="finish-login" style="display:none; text-align:center; padding: 5px;">
+                        <div style="color:#155724; background-color:#d4edda; border:1px solid #c3e6cb; padding:8px; border-radius:5px; margin-bottom:10px; font-family:sans-serif; font-size:13px; font-weight:bold;">
+                            ✅ Google Doğrulandı
+                        </div>
+                        <button onclick="finishLogin()" style="background-color:#1a73e8; color:white; padding:10px; border:none; border-radius:5px; font-weight:bold; cursor:pointer; width:100%; font-family:sans-serif; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            🚀 Platforma Geç
+                        </button>
+                    </div>
+                    <script>
+                        var win = window.top || window.parent || window;
+                        // URL'de token varsa bu menüyü göster
+                        if (win.location.hash.includes("access_token=")) {
+                            document.getElementById('finish-login').style.display = 'block';
+                        }
+
+                        // Tıklayınca '# 'yi '?' yapıp içeri al
+                        function finishLogin() {
+                            var newUrl = win.location.origin + win.location.pathname + win.location.hash.replace('#', '?');
+                            win.location.assign(newUrl);
+                        }
+                    </script>
+                """, height=120)
 
     st.divider()
 
