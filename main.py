@@ -51,31 +51,44 @@ import streamlit.components.v1 as components
 supabase = get_supabase()
 
 # --------------------------------------------------------------------------
-# 🎯 SUPABASE & GOOGLE OTURUM YAKALAYICI (GÜÇLENDİRİLMİŞ)
+# 🎯 SUPABASE & GOOGLE OTURUM YAKALAYICI (NİHAİ ÇÖZÜM - IFRAME DELİCİ)
 # --------------------------------------------------------------------------
 import streamlit.components.v1 as components
+import time
 
-# 1. GÖRÜNMEZ YAKALAYICI: '#' işaretini anında '?' işaretine çevirir
-components.html("""
-<script>
-    var hash = window.parent.location.hash;
-    if (hash && hash.includes("access_token=")) {
-        var newQuery = hash.replace('#', '?');
-        window.parent.location.replace(window.parent.location.origin + window.parent.location.pathname + newQuery);
-    }
-</script>
-""", height=0, width=0)
+# 1. GÖRÜNMEZ YAKALAYICI (Streamlit'in hapishanesinden 'window.top' ile çıkıyoruz)
+components.html(
+    """
+    <script>
+        // En üst seviyedeki tarayıcı penceresine ulaş
+        var targetWindow = window.top || window.parent || window;
+        var hash = targetWindow.location.hash;
 
-# 2. OTURUMU AÇMA
+        // Eğer URL'de '#' varsa ve bu bir token ise, anında '?' ile değiştir
+        if (hash && hash.includes("access_token=")) {
+            var newUrl = targetWindow.location.origin + targetWindow.location.pathname + hash.replace('#', '?');
+            targetWindow.location.replace(newUrl);
+        }
+    </script>
+    """,
+    height=0, width=0
+)
+
+# 2. OTURUMU AÇMA (Saniye farkıyla yakalayıp içeri alıyoruz)
 query_params = st.query_params
 if "access_token" in query_params:
     try:
+        # Supabase'e giriş iznini ver
         supabase.auth.set_session(query_params["access_token"], query_params.get("refresh_token", ""))
-        st.query_params.clear() # URL'yi temizle
+
+        # Tarayıcı çubuğundaki o uzun çirkin yazıları temizle
+        st.query_params.clear()
+
+        # Sistemi yarım saniye bekletip Analiz ekranına fırlat
         time.sleep(0.5)
-        st.rerun() # Analize Geç!
+        st.rerun()
     except Exception as e:
-        print(f"Oturum yakalama hatası: {e}")
+        st.error(f"Oturum doğrulama hatası: {e}")
 
 
 # 3. MEVCUT OTURUM KONTROLÜ
