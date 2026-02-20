@@ -48,19 +48,22 @@ supabase = get_supabase()
 # --------------------------------------------------------------------------
 # 🎯 SD ENERJİ - MERKEZİ OTURUM YÖNETİMİ (KONSOLİDE EDİLDİ)
 # --------------------------------------------------------------------------
+import time
 
-# 1. URL'DEN ANAHTARI YAKALA
+# 1. URL'DEN ANAHTARI YAKALA (Siz manuel ? yaptığınızda veya butona tıklandığında)
 if "access_token" in st.query_params:
     token = st.query_params["access_token"]
+    refresh = st.query_params.get("refresh_token", "")
     try:
-        # Supabase'e bu anahtarı tanıt
-        supabase.auth.set_session(token, st.query_params.get("refresh_token", ""))
+        # Supabase'e bu anahtarı tanıt ve oturumu kur
+        supabase.auth.set_session(token, refresh)
         user_resp = supabase.auth.get_user()
 
         if user_resp and user_resp.user:
             u = user_resp.user
             st.session_state.logged_in = True
             st.session_state.user_id = u.id
+            st.session_state.user_email = u.email
             st.session_state.username = u.user_metadata.get('full_name', u.email.split('@')[0])
 
             # Rol çekme
@@ -70,35 +73,40 @@ if "access_token" in st.query_params:
             except:
                 st.session_state.user_role = "Free"
 
+            # URL'yi temizle ve ANALİZ DASHBOARD'una fırlat
             st.query_params.clear()
-            st.success("✅ Giriş başarılı...")
+            st.success("✅ Giriş başarılı, yönlendiriliyorsunuz...")
             time.sleep(0.5)
             st.rerun()
     except Exception as e:
-        st.error(f"❌ Giriş hatası: {e}")
+        st.error(f"❌ Giriş anahtarı işlenemedi: {e}")
 
-# 2. MEVCUT OTURUMU KONTROL ET VE KORU
+# 2. MEVCUT OTURUMU HER YENİLEMEDE KORU (Hafıza Kaybını Önler)
 curr_user = None
 try:
-    # Eğer zaten bir login state varsa veya session canlıysa
+    # Supabase hafızasına sor: "Hala burada bir oturum var mı?"
     sess = supabase.auth.get_session()
     if sess and sess.user:
         curr_user = sess.user
 except:
     pass
 
+# 3. KİMLİK DOĞRULAMA VE KAPIYI AÇMA
 if curr_user:
     st.session_state.logged_in = True
     st.session_state.user_id = curr_user.id
+    st.session_state.user_email = curr_user.email
     st.session_state.username = curr_user.user_metadata.get('full_name', curr_user.email.split('@')[0])
-    # Rol eksikse tamamla
-    if st.session_state.get('user_role', 'Free') == 'Free':
+
+    # Rol kontrolü (Eğer hafızada yoksa veritabanına bak)
+    if 'user_role' not in st.session_state or st.session_state.user_role == "Free":
         try:
-            r_data = supabase.table("users").select("role").eq("id", curr_user.id).execute()
-            st.session_state.user_role = r_data.data[0].get("role", "Free") if r_data.data else "Free"
+            role_data = supabase.table("users").select("role").eq("id", curr_user.id).execute()
+            st.session_state.user_role = role_data.data[0].get("role", "Free") if role_data.data else "Free"
         except:
-            pass
+            st.session_state.user_role = "Free"
 else:
+    # Eğer gerçekten hiçbir oturum yoksa logged_in False kalsın
     st.session_state.logged_in = False
 
 # --------------------------------------------------------------------------
