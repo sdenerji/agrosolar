@@ -46,59 +46,38 @@ matplotlib.use('Agg')
 supabase = get_supabase()
 
 # --------------------------------------------------------------------------
-# 🎯 SD ENERJİ - MERKEZİ OTURUM YÖNETİMİ (KONSOLİDE EDİLDİ)
+# 🎯 SD ENERJİ - AKILLI OTURUM YÖNETİMİ (KONSOLİDE EDİLDİ)
 # --------------------------------------------------------------------------
 import time
 
-# 1. URL'den gelen anahtarı yakala (Mavi buton tıklandığında çalışır)
-if "access_token" in st.query_params:
-    token = st.query_params["access_token"]
-    refresh = st.query_params.get("refresh_token", "")
+# 1. URL'DEN TOKEN YAKALAMA (Giriş anında çalışır)
+q_params = st.query_params
+if "access_token" in q_params:
     try:
-        # Supabase'e oturumu zorla tanıt
-        supabase.auth.set_session(token, refresh)
+        supabase.auth.set_session(q_params["access_token"], q_params.get("refresh_token", ""))
+        st.query_params.clear()
+        st.session_state.logged_in = True
+        time.sleep(0.3)
+        st.rerun()
+    except: pass
 
-        # Kullanıcıyı doğrula
-        user_resp = supabase.auth.get_user()
-        if user_resp and user_resp.user:
-            u = user_resp.user
-            st.session_state.logged_in = True
-            st.session_state.user_id = u.id
-            st.session_state.user_email = u.email
-            st.session_state.username = u.user_metadata.get('full_name', u.email.split('@')[0])
-
-            # Rol bilgisini çek
-            try:
-                r_q = supabase.table("users").select("role").eq("id", u.id).execute()
-                st.session_state.user_role = r_q.data[0].get("role", "Free") if r_q.data else "Free"
-            except:
-                st.session_state.user_role = "Free"
-
-            # URL'yi temizle ve tertemiz sayfaya geç
-            st.query_params.clear()
-            st.success("✅ Giriş başarılı, yönlendiriliyorsunuz...")
-            time.sleep(0.5)
-            st.rerun()
-    except Exception as e:
-        st.error(f"❌ Giriş anahtarı işlenemedi: {e}")
-
-# 2. Mevcut oturumu koru (Sayfa her yenilendiğinde kontrol eder)
-if not st.session_state.get('logged_in', False):
-    try:
-        sess = supabase.auth.get_session()
-        if sess and sess.user:
-            u = sess.user
-            st.session_state.logged_in = True
-            st.session_state.user_id = u.id
-            st.session_state.username = u.user_metadata.get('full_name', u.email.split('@')[0])
-            # Rolü hafızada yoksa veritabanından çek
-            if 'user_role' not in st.session_state or st.session_state.user_role == "Free":
-                r_data = supabase.table("users").select("role").eq("id", u.id).execute()
-                st.session_state.user_role = r_data.data[0].get("role", "Free") if r_data.data else "Free"
-    except:
-        pass
-else:
-    # Eğer gerçekten hiçbir oturum yoksa logged_in False kalsın
+# 2. MEVCUT OTURUMU DOĞRULAMA (Her yenilemede çalışır)
+try:
+    sess = supabase.auth.get_session()
+    if sess and sess.user:
+        u = sess.user
+        st.session_state.logged_in = True
+        st.session_state.user_id = u.id
+        st.session_state.user_email = u.email
+        st.session_state.username = u.user_metadata.get('full_name', u.email.split('@')[0])
+        # Rolü kontrol et
+        if st.session_state.get('user_role', 'Free') == 'Free':
+            r_data = supabase.table("users").select("role").eq("id", u.id).execute()
+            st.session_state.user_role = r_data.data[0].get("role", "Free") if r_data.data else "Free"
+    else:
+        # Zorla False yapmıyoruz, sadece state'i koruyoruz
+        if 'logged_in' not in st.session_state: st.session_state.logged_in = False
+except:
     st.session_state.logged_in = False
 
 # --------------------------------------------------------------------------
