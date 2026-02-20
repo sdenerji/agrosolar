@@ -340,7 +340,7 @@ else:
         * **3D Arazi Modelleme:** SRTM verileri ile arazinin dijital ikizinin oluşturulması, eğim ve bakı analizleri.
         * **Gölge ve Ufuk Analizi:** Çevresel faktörlerin üretim verimliliğine etkisinin simüle edilmesi.
         * **Teknik Raporlama:** Yapay zeka destekli, banka onaylı detaylı fizibilite ve verimlilik raporlarının oluşturulması.
-        """)
+        """ )
     render_announcement_banner()
     st.divider()
 
