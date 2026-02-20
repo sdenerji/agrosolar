@@ -82,24 +82,22 @@ if "access_token" in st.query_params:
     except Exception as e:
         st.error(f"❌ Giriş anahtarı işlenemedi: {e}")
 
-# 2. Mevcut oturumu koru (Sayfa her yenilendiğinde kontrol eder)
-if not st.session_state.get('logged_in', False):
-    try:
-        sess = supabase.auth.get_session()
-        if sess and sess.user:
-            u = sess.user
-            st.session_state.logged_in = True
-            st.session_state.user_id = u.id
-            st.session_state.username = u.user_metadata.get('full_name', u.email.split('@')[0])
-            # Rolü hafızada yoksa veritabanından çek
-            if 'user_role' not in st.session_state or st.session_state.user_role == "Free":
-                r_data = supabase.table("users").select("role").eq("id", u.id).execute()
-                st.session_state.user_role = r_data.data[0].get("role", "Free") if r_data.data else "Free"
-    except:
-        pass
-else:
-    # Eğer gerçekten hiçbir oturum yoksa logged_in False kalsın
-    st.session_state.logged_in = False
+# 2. Mevcut oturumu koru (Kullanıcıyı dışarı atma bug'ı çözüldü)
+try:
+    sess = supabase.auth.get_session()
+    if sess and sess.user:
+        u = sess.user
+        st.session_state.logged_in = True
+        st.session_state.user_id = u.id
+        st.session_state.username = u.user_metadata.get('full_name', u.email.split('@')[0])
+        # Rolü hafızada yoksa veritabanından çek
+        if st.session_state.get('user_role', 'Free') == 'Free':
+            r_data = supabase.table("users").select("role").eq("id", u.id).execute()
+            st.session_state.user_role = r_data.data[0].get("role", "Free") if r_data.data else "Free"
+    else:
+        if 'logged_in' not in st.session_state: st.session_state.logged_in = False
+except:
+    if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 
 # --------------------------------------------------------------------------
 # 🎯 KRİTİK: HATA ÖNLEYİCİ BAŞLATMA (INITIALIZATION)
@@ -238,26 +236,26 @@ if not st.session_state.logged_in:
     import streamlit.components.v1 as components
 
     components.html("""
-        <div id="bridge-card" style="display:none; flex-direction:column; align-items:center; justify-content:center; padding:40px; font-family:sans-serif; background:white; border-radius:12px; border:2px solid #1a73e8; box-shadow:0 10px 25px rgba(0,0,0,0.1); margin:20px auto; max-width:500px; text-align:center;">
-            <h2 style="color:#1a202c; margin-bottom:10px; font-size:22px;">✅ Google Onayı Başarılı!</h2>
-            <p style="color:#4a5568; margin-bottom:25px;">Platforma güvenli giriş için aşağıdaki butona tıklayın.</p>
-            <button id="goBtn" style="background-color:#1a73e8; color:white; padding:15px 35px; border:none; border-radius:8px; font-weight:bold; font-size:18px; cursor:pointer; width:100%;">
-                🚀 Platforma Giriş Yap
-            </button>
-        </div>
+            <div id="bridge-card" style="display:none; flex-direction:column; align-items:center; justify-content:center; padding:40px; font-family:sans-serif; background:white; border-radius:12px; border:2px solid #1a73e8; box-shadow:0 10px 25px rgba(0,0,0,0.1); margin:20px auto; max-width:500px; text-align:center;">
+                <h2 style="color:#1a202c; margin-bottom:10px; font-size:22px;">✅ Google Onayı Başarılı!</h2>
+                <p style="color:#4a5568; margin-bottom:25px;">Platforma güvenli giriş için aşağıdaki butona tıklayın.</p>
+                <button id="goBtn" style="background-color:#1a73e8; color:white; padding:15px 35px; border:none; border-radius:8px; font-weight:bold; font-size:18px; cursor:pointer; width:100%;">
+                    🚀 Platforma Giriş Yap
+                </button>
+            </div>
 
-        <script>
-            var win = window.top || window.parent || window;
-            if (win.location.hash.includes("access_token=")) {
-                document.getElementById('bridge-card').style.display = 'flex';
-                document.getElementById('goBtn').onclick = function() {
-                    var newUrl = win.location.origin + win.location.pathname + win.location.hash.replace('#', '?');
-                    // 🎯 Tarayıcıyı en üst seviyeden zorla yönlendir
-                    win.location.href = newUrl;
-                };
-            }
-        </script>
-        """, height=350)
+            <script>
+                var win = window.top || window.parent || window;
+                if (win.location.hash.includes("access_token=")) {
+                    document.getElementById('bridge-card').style.display = 'flex';
+                    document.getElementById('goBtn').onclick = function() {
+                        var newUrl = win.location.origin + win.location.pathname + win.location.hash.replace('#', '?');
+                        // 🎯 Tarayıcıyı en üst seviyeden KESİN yönlendir
+                        win.location.assign(newUrl);
+                    };
+                }
+            </script>
+            """, height=350)
 
 elif st.session_state.page == 'profil':
     show_profile_page()
