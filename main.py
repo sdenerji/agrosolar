@@ -131,6 +131,20 @@ hide_header_footer()
 if st.session_state.logged_in:
     handle_session_limit()
 
+import streamlit.components.v1 as components
+components.html(
+    """
+    <script>
+        var win = window.top || window.parent || window;
+        var hash = win.location.hash;
+        if (hash && hash.includes("access_token=")) {
+            var newUrl = win.location.origin + win.location.pathname + hash.replace('#', '?');
+            win.location.replace(newUrl);
+        }
+    </script>
+    """,
+    height=0, width=0
+)
 
 def update_from_input():
     st.session_state.lat, st.session_state.lon = st.session_state.input_lat, st.session_state.input_lon
