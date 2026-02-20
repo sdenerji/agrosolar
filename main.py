@@ -51,38 +51,49 @@ supabase = get_supabase()
 import time
 
 # 1. URL'DEN ANAHTARI YAKALA VE HAFIZAYA KAZI
-if "access_token" in st.query_params:
-    token = st.query_params["access_token"]
-    try:
-        # 1. Supabase'e bu token'ın kime ait olduğunu sor
-        user_resp = supabase.auth.get_user(token)
+import time
 
+# 1. URL'DEKİ ANAHTARI CEBE KOY (Mavi butona tıklandığında burası çalışır)
+q_params = st.query_params
+if "access_token" in q_params:
+    token = q_params["access_token"]
+    try:
+        # Supabase'e bu anahtarı göster ve kimlik onayı al
+        user_resp = supabase.auth.get_user(token)
         if user_resp and user_resp.user:
-            # 2. Kullanıcı geçerliyse hafızaya (Session State) kaydet
             u = user_resp.user
+            # KRİTİK: Streamlit hafızasına (Session State) kazı
             st.session_state.logged_in = True
             st.session_state.user_id = u.id
             st.session_state.user_email = u.email
-            st.session_state.username = u.user_metadata.get('full_name', u.email.split('@')[0])
+            st.session_state.username = u.user_metadata.get('full_name', 'Kullanıcı')
 
-            # 3. Rol bilgisini çek (Kritik!)
+            # Rol bilgisini veritabanından çek
             try:
-                role_query = supabase.table("users").select("role").eq("id", u.id).execute()
-                st.session_state.user_role = role_query.data[0].get("role", "Free") if role_query.data else "Free"
+                r_data = supabase.table("users").select("role").eq("id", u.id).execute()
+                st.session_state.user_role = r_data.data[0].get("role", "Free") if r_data.data else "Free"
             except:
                 st.session_state.user_role = "Free"
 
-            # 4. URL'yi temizle ve içeri fırlat!
+            # URL'yi temizle ve ANALİZ DASHBOARD'una fırlat
             st.query_params.clear()
-            time.sleep(0.2)
+            time.sleep(0.3)
             st.rerun()
+        else:
+            st.error("⚠️ Supabase bu anahtarı doğrulamadı. Lütfen tekrar giriş yapın.")
     except Exception as e:
-        st.error(f"Giriş anahtarı işlenemedi: {e}")
+        st.error(f"❌ Giriş İşleme Hatası: {str(e)}")
 
-# 2. HAFIZA KONTROLÜ (Sayfa her yenilendiğinde anahtarı tekrar cebine koy)
-if "supa_access" in st.session_state:
+# 2. MEVCUT OTURUMU KORU (Sayfa her yenilendiğinde burası kontrol eder)
+if not st.session_state.get('logged_in', False):
     try:
-        supabase.auth.set_session(st.session_state.supa_access, st.session_state.supa_refresh)
+        # Eğer zaten bir session varsa onu yakala
+        check_sess = supabase.auth.get_session()
+        if check_sess and check_sess.user:
+            u = check_sess.user
+            st.session_state.logged_in = True
+            st.session_state.user_id = u.id
+            st.session_state.username = u.user_metadata.get('full_name', 'Kullanıcı')
     except:
         pass
 
