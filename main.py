@@ -161,7 +161,6 @@ with st.sidebar:
         if st.button("Çıkış Yap", type="primary", use_container_width=True):
             supabase.auth.sign_out()
             st.session_state.logged_in = False
-            st.session_state.page = 'analiz'  # 🎯 Çıkışta analiz sayfasına dön
             st.rerun()
     else:
         # Eğer giriş yapılmamışsa sadece Login Formunu Göster
