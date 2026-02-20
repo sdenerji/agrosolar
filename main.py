@@ -48,21 +48,41 @@ matplotlib.use('Agg')
 # --------------------------------------------------------------------------
 supabase = get_supabase()
 
-# --------------------------------------------------------------------------
-# 🎯 SUPABASE & GOOGLE OTURUM YAKALAYICI (PYTHON KISMI)
-# --------------------------------------------------------------------------
 import time
 
-# OTURUMU AÇMA (Sadece bu kalacak)
+# OTURUMU AÇMA (set_session'ın nazlanmasını bypass ediyoruz)
 query_params = st.query_params
 if "access_token" in query_params:
     try:
-        supabase.auth.set_session(query_params["access_token"], query_params.get("refresh_token", ""))
+        acc_token = query_params["access_token"]
+
+        # 1. Token'ı doğrudan Supabase sunucusuna sor (En garanti yol)
+        user_resp = supabase.auth.get_user(acc_token)
+
+        # 2. Eğer Supabase "Evet bu kullanıcı gerçek" derse, sistemi zorla aç
+        if user_resp and user_resp.user:
+            current_user = user_resp.user
+            st.session_state.logged_in = True
+            st.session_state.user_id = current_user.id
+            st.session_state.user_email = current_user.email
+            if 'full_name' in current_user.user_metadata:
+                st.session_state.username = current_user.user_metadata['full_name']
+
+            # Kullanıcı rolünü güvene al
+            try:
+                user_data = supabase.table("users").select("role").eq("id", current_user.id).execute()
+                st.session_state.user_role = user_data.data[0].get("role", "Free") if user_data.data else "Free"
+            except:
+                st.session_state.user_role = "Free"
+
+        # 3. Adres çubuğunu temizle ve analiz ekranına geç
         st.query_params.clear()
         time.sleep(0.5)
         st.rerun()
+
     except Exception as e:
-        print(f"Oturum doğrulama hatası: {e}")
+        # Eğer yine hata olursa, bu sefer gizlice değil ekrana basarak göstersin
+        st.error(f"Supabase Token Hatası: {str(e)}")
 
 # 3. MEVCUT OTURUM KONTROLÜ
 def check_active_session():
