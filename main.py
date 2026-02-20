@@ -44,7 +44,7 @@ except ImportError:
 matplotlib.use('Agg')
 
 # --------------------------------------------------------------------------
-# 🎯 SUPABASE & GOOGLE OTURUM YAKALAYICI
+# 🎯 SUPABASE & GOOGLE OTURUM YAKALAYICI2
 # --------------------------------------------------------------------------
 import streamlit.components.v1 as components
 
