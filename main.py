@@ -43,71 +43,53 @@ except ImportError:
 
 matplotlib.use('Agg')
 
-# --------------------------------------------------------------------------
-# 🎯 SUPABASE & GOOGLE OTURUM YAKALAYICI
-# --------------------------------------------------------------------------
 supabase = get_supabase()
 
-import time
+# --------------------------------------------------------------------------
+# 🎯 SUPABASE OTURUM YAKALAYICI VE KALICI HAFIZA (NİHAİ ÇÖZÜM)
+# --------------------------------------------------------------------------
 
-# OTURUMU AÇMA (set_session'ın nazlanmasını bypass ediyoruz)
-query_params = st.query_params
-if "access_token" in query_params:
+# 1. URL'den gelen şifreyi yakala ve uygulamanın KALICI HAFIZASINA yaz
+if "access_token" in st.query_params:
+    st.session_state.supa_access = st.query_params["access_token"]
+    st.session_state.supa_refresh = st.query_params.get("refresh_token", "")
+    st.query_params.clear()  # URL'yi temizle
+    st.rerun()  # Sayfayı yenile
+
+# 2. HAFIZA KONTROLÜ: Uygulama her yenilendiğinde Supabase'e "Ben buradayım" de
+if "supa_access" in st.session_state:
     try:
-        acc_token = query_params["access_token"]
-
-        # 1. Token'ı doğrudan Supabase sunucusuna sor (En garanti yol)
-        user_resp = supabase.auth.get_user(acc_token)
-
-        # 2. Eğer Supabase "Evet bu kullanıcı gerçek" derse, sistemi zorla aç
-        if user_resp and user_resp.user:
-            current_user = user_resp.user
-            st.session_state.logged_in = True
-            st.session_state.user_id = current_user.id
-            st.session_state.user_email = current_user.email
-            if 'full_name' in current_user.user_metadata:
-                st.session_state.username = current_user.user_metadata['full_name']
-
-            # Kullanıcı rolünü güvene al
-            try:
-                user_data = supabase.table("users").select("role").eq("id", current_user.id).execute()
-                st.session_state.user_role = user_data.data[0].get("role", "Free") if user_data.data else "Free"
-            except:
-                st.session_state.user_role = "Free"
-
-        # 3. Adres çubuğunu temizle ve analiz ekranına geç
-        st.query_params.clear()
-        time.sleep(0.5)
-        st.rerun()
-
-    except Exception as e:
-        # Eğer yine hata olursa, bu sefer gizlice değil ekrana basarak göstersin
-        st.error(f"Supabase Token Hatası: {str(e)}")
-
-# 3. MEVCUT OTURUM KONTROLÜ
-def check_active_session():
-    try:
-        session = supabase.auth.get_session()
-        if session and session.user:
-            return session.user
+        supabase.auth.set_session(st.session_state.supa_access, st.session_state.supa_refresh)
     except:
-        return None
+        pass  # Token süresi dolmuşsa sessizce geç
 
+# 3. KİMLİK DOĞRULAMA (Eski check_active_session yerine bu daha güvenli)
+current_user = None
+try:
+    session = supabase.auth.get_session()
+    if session and session.user:
+        current_user = session.user
+except:
+    pass
 
-current_user = check_active_session()
-
+# 4. KULLANICIYI İÇERİ AL
 if current_user:
     st.session_state.logged_in = True
     st.session_state.user_id = current_user.id
     st.session_state.user_email = current_user.email
+
+    # Google ismini çek
     if 'full_name' in current_user.user_metadata:
         st.session_state.username = current_user.user_metadata['full_name']
 
+    # Kullanıcı rolünü güvene al
     try:
         user_data = supabase.table("users").select("role").eq("id", current_user.id).execute()
         st.session_state.user_role = user_data.data[0].get("role", "Free") if user_data.data else "Free"
     except:
         st.session_state.user_role = "Free"
+else:
+    st.session_state.logged_in = False
 
 # --------------------------------------------------------------------------
 # 🎯 KRİTİK: HATA ÖNLEYİCİ BAŞLATMA (INITIALIZATION)
