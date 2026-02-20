@@ -126,7 +126,7 @@ if 'selected_inverter_brand' not in st.session_state:
 # --------------------------------------------------------------------------
 # AYARLAR VE OTURUM
 # --------------------------------------------------------------------------
-st.set_page_config(page_title="SD Enerji", layout="wide")
+st.set_page_config(page_title="SD Enerji Analiz App", layout="wide")
 hide_header_footer()
 if st.session_state.logged_in:
     handle_session_limit()
