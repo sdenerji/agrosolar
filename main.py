@@ -46,49 +46,61 @@ matplotlib.use('Agg')
 supabase = get_supabase()
 
 # --------------------------------------------------------------------------
-# 🎯 SUPABASE OTURUM YAKALAYICI VE KALICI HAFIZA (NİHAİ ÇÖZÜM)
+# 🎯 SUPABASE & GOOGLE OTURUM YAKALAYICI (BUNKER MODU)
 # --------------------------------------------------------------------------
+import time
 
-# 1. URL'den gelen şifreyi yakala ve uygulamanın KALICI HAFIZASINA yaz
+# 1. URL'DEN ANAHTARI YAKALA VE HAFIZAYA KAZI
 if "access_token" in st.query_params:
+    # URL'den anahtarı al ve kalıcı hafızaya (Session State) koy
     st.session_state.supa_access = st.query_params["access_token"]
     st.session_state.supa_refresh = st.query_params.get("refresh_token", "")
-    st.query_params.clear()  # URL'yi temizle
-    st.rerun()  # Sayfayı yenile
 
-# 2. HAFIZA KONTROLÜ: Uygulama her yenilendiğinde Supabase'e "Ben buradayım" de
+    # 🎯 Kritik: Supabase'e "İşte anahtarım, bu oturumu hemen kur" de
+    try:
+        supabase.auth.set_session(st.session_state.supa_access, st.session_state.supa_refresh)
+        # URL'yi temizle ve sayfayı tazele
+        st.query_params.clear()
+        time.sleep(0.3)
+        st.rerun()
+    except Exception as e:
+        st.error(f"⚠️ Oturum Kurma Hatası: {e}")
+
+# 2. HAFIZA KONTROLÜ (Sayfa her yenilendiğinde anahtarı tekrar cebine koy)
 if "supa_access" in st.session_state:
     try:
         supabase.auth.set_session(st.session_state.supa_access, st.session_state.supa_refresh)
     except:
-        pass  # Token süresi dolmuşsa sessizce geç
+        pass
 
-# 3. KİMLİK DOĞRULAMA (Eski check_active_session yerine bu daha güvenli)
+# 3. KULLANICI DOĞRULAMA (Şu an kim içeride?)
 current_user = None
 try:
-    session = supabase.auth.get_session()
-    if session and session.user:
-        current_user = session.user
+    # Supabase'e sor: "Şu an geçerli bir oturum var mı?"
+    sess = supabase.auth.get_session()
+    if sess and sess.user:
+        current_user = sess.user
 except:
     pass
 
-# 4. KULLANICIYI İÇERİ AL
+# 4. KAPIYI AÇ VE İÇERİ AL
 if current_user:
     st.session_state.logged_in = True
     st.session_state.user_id = current_user.id
     st.session_state.user_email = current_user.email
 
-    # Google ismini çek
+    # Google ismini al
     if 'full_name' in current_user.user_metadata:
         st.session_state.username = current_user.user_metadata['full_name']
 
-    # Kullanıcı rolünü güvene al
+    # Kullanıcı rolünü veritabanından çek (Rol yönetimi bozulmasın)
     try:
         user_data = supabase.table("users").select("role").eq("id", current_user.id).execute()
         st.session_state.user_role = user_data.data[0].get("role", "Free") if user_data.data else "Free"
     except:
         st.session_state.user_role = "Free"
 else:
+    # Eğer her şeye rağmen kullanıcı yoksa, giriş ekranında kal
     st.session_state.logged_in = False
 
 # --------------------------------------------------------------------------
