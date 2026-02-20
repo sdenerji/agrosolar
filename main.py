@@ -225,39 +225,7 @@ with st.sidebar:
 # --------------------------------------------------------------------------
 # 🎯 SAYFA AKIŞI (ROUTING)
 # --------------------------------------------------------------------------
-if not st.session_state.logged_in:
-    # Kullanıcı giriş yapmamışsa sadece bir karşılama ekranı göster
-    st.title("⚡ SD Enerji Analiz App")
-    st.info("Sisteme erişmek için sol taraftaki menüden giriş yapınız.")
-    st.markdown("---")
-    st.markdown(
-        "SD Enerji Analiz App; profesyonel GES tasarımı, 3D arazi modelleme ve teknik raporlama sunan bir mühendislik platformudur.")
-
-    import streamlit.components.v1 as components
-
-    components.html("""
-            <div id="bridge-card" style="display:none; flex-direction:column; align-items:center; justify-content:center; padding:40px; font-family:sans-serif; background:white; border-radius:12px; border:2px solid #1a73e8; box-shadow:0 10px 25px rgba(0,0,0,0.1); margin:20px auto; max-width:500px; text-align:center;">
-                <h2 style="color:#1a202c; margin-bottom:10px; font-size:22px;">✅ Google Onayı Başarılı!</h2>
-                <p style="color:#4a5568; margin-bottom:25px;">Platforma güvenli giriş için aşağıdaki butona tıklayın.</p>
-                <button id="goBtn" style="background-color:#1a73e8; color:white; padding:15px 35px; border:none; border-radius:8px; font-weight:bold; font-size:18px; cursor:pointer; width:100%;">
-                    🚀 Platforma Giriş Yap
-                </button>
-            </div>
-
-            <script>
-                var win = window.top || window.parent || window;
-                if (win.location.hash.includes("access_token=")) {
-                    document.getElementById('bridge-card').style.display = 'flex';
-                    document.getElementById('goBtn').onclick = function() {
-                        var newUrl = win.location.origin + win.location.pathname + win.location.hash.replace('#', '?');
-                        // 🎯 Tarayıcıyı en üst seviyeden KESİN yönlendir
-                        win.location.assign(newUrl);
-                    };
-                }
-            </script>
-            """, height=350)
-
-elif st.session_state.page == 'profil':
+if st.session_state.page == 'profil':
     show_profile_page()
 
 elif st.session_state.page == 'coord_tool':
