@@ -46,7 +46,7 @@ def add_teias_layer(m):
             for item in grid_data:
                 if item['type'] == 'Point':
                     teias_live_data = get_substation_data(item['name'])
-                    popup_html = create_substation_popup(teias_live_data)
+                    popup_html = create_substation_popup(teias_live_data, item['coords'])
                     folium.CircleMarker(
                         location=item['coords'], radius=8,
                         color=teias_live_data['color'], fill=True, fill_opacity=1,

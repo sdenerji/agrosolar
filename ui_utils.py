@@ -55,7 +55,7 @@ def get_grid_color(mw_val):
 
 
 # --- GÜNCELLENMİŞ POPUP (SADELEŞTİRİLDİ) ---
-def create_substation_popup(data):
+def create_substation_popup(data, coords):
     """
     Sadece TEİAŞ'ın verdiği resmi 'Boş Kapasite' verisini gösterir.
     Varsayılan (Tahmini) toplam güç verilerini gizler.
@@ -77,13 +77,32 @@ def create_substation_popup(data):
                     {data['free_mw']} MW
                 </td>
             </tr>
-        </table>
-
+        </table>                
         <div style="margin-top: 10px; font-size: 10px; color: #95a5a6; text-align: center; font-style:italic;">
             Veri Kaynağı: TEİAŞ (Resmi Duyuru)
         </div>
     </div>
     """
+    lat, lon = coords[0], coords[1]
+    nav_link = f"https://www.google.com/maps/dir/?api=1&destination={lat},{lon}"
+
+    nav_button_html = f"""
+            <hr style="margin: 10px 0; border: 0; border-top: 1px solid #eee;">
+            <a href="{nav_link}" target="_blank" style="
+                display: block; 
+                text-align: center; 
+                background-color: #4285F4; 
+                color: white; 
+                text-decoration: none; 
+                padding: 8px; 
+                border-radius: 4px; 
+                font-weight: bold; 
+                font-family: sans-serif;
+                font-size: 12px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                📍 Yol Tarifi Al (Navigasyon)
+            </a>
+        """
     return html
 
 
