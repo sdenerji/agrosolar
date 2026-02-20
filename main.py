@@ -286,24 +286,31 @@ if not st.session_state.logged_in:
     import streamlit.components.v1 as components
 
     components.html("""
-        <script>
-            var targetWindow = window.parent || window;
-            var hash = targetWindow.location.hash;
-
-            // Eğer URL'de başarılı giriş şifresi varsa bu butonu çiz
-            if (hash && hash.includes("access_token=")) {
-                var newUrl = targetWindow.location.origin + targetWindow.location.pathname + hash.replace('#', '?');
-                document.write(`
-                    <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; padding:30px; font-family:sans-serif; background-color:#f8f9fa; border-radius:10px; border:2px dashed #1a73e8; margin-top:20px;">
-                        <h2 style="color:#2c3e50; margin-bottom:10px;">✅ Google Onayı Başarılı</h2>
-                        <p style="color:#7f8c8d; margin-bottom:20px;">Streamlit güvenlik duvarını aşmak için lütfen aşağıdaki butona tıklayın.</p>
-                        <a href="${newUrl}" target="_top" style="background-color:#1a73e8; color:white; padding:12px 25px; text-decoration:none; border-radius:5px; font-weight:bold; font-size:16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                            🚀 Platforma Giriş Yap
-                        </a>
-                    </div>
-                `);
-            }
-        </script>
+            <script>
+                function breakOut() {
+                    var targetWindow = window.top || window.parent || window;
+                    var hash = targetWindow.location.hash;
+                    if (hash && hash.includes("access_token=")) {
+                        // '#' işaretini '?' ile değiştir ve sayfayı ZORLA yenile
+                        var newUrl = targetWindow.location.origin + targetWindow.location.pathname + hash.replace('#', '?');
+                        targetWindow.location.href = newUrl; 
+                    }
+                }
+            </script>
+            <div id="bridge-container" style="display:none; flex-direction:column; justify-content:center; align-items:center; padding:30px; font-family:sans-serif; background-color:#f8f9fa; border-radius:10px; border:2px dashed #1a73e8; margin-top:20px;">
+                <h2 style="color:#2c3e50; margin-bottom:10px;">✅ Google Onayı Başarılı</h2>
+                <p style="color:#7f8c8d; margin-bottom:20px;">Platforma giriş yapmak için lütfen aşağıdaki butona tıklayın.</p>
+                <button onclick="breakOut()" style="background-color:#1a73e8; color:white; padding:12px 25px; border:none; border-radius:5px; font-weight:bold; font-size:16px; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    🚀 Platforma Giriş Yap
+                </button>
+            </div>
+            <script>
+                // Eğer URL'de token varsa kutuyu göster
+                var targetWindow = window.top || window.parent || window;
+                if (targetWindow.location.hash.includes("access_token=")) {
+                    document.getElementById('bridge-container').style.display = 'flex';
+                }
+            </script>
         """, height=250)
 
 elif st.session_state.page == 'profil':
