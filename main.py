@@ -246,30 +246,34 @@ if not st.session_state.logged_in:
     import streamlit.components.v1 as components
 
     components.html("""
-        <div id="bridge" style="display:none; flex-direction:column; align-items:center; justify-content:center; padding:30px; font-family:sans-serif; background:#fff; border-radius:12px; border:2px solid #1a73e8; box-shadow:0 8px 16px rgba(0,0,0,0.1); margin:20px;">
-            <h2 style="color:#2c3e50; margin-bottom:5px;">✅ Google Doğrulandı</h2>
-            <p style="color:#7f8c8d; margin-bottom:20px;">Platforma güvenli geçiş için aşağıdaki butona tıklayın.</p>
-            <button id="goBtn" style="background:#1a73e8; color:white; padding:14px 30px; border:none; border-radius:6px; font-weight:bold; font-size:16px; cursor:pointer; width:100%;">
+        <div id="bridge-card" style="display:none; flex-direction:column; align-items:center; justify-content:center; padding:40px; font-family:sans-serif; background:white; border-radius:12px; border:2px solid #e1e4e8; box-shadow:0 10px 25px rgba(0,0,0,0.1); margin:20px auto; max-width:500px; text-align:center;">
+            <div style="font-size:50px; margin-bottom:15px;">✅</div>
+            <h2 style="color:#1a202c; margin-bottom:10px; font-size:22px;">Google Onayı Başarılı!</h2>
+            <p style="color:#4a5568; margin-bottom:25px; line-height:1.5;">Hesabınız doğrulandı. Güvenli giriş işlemini tamamlamak için aşağıdaki butona tıklayın.</p>
+            <button id="forceBtn" style="background-color:#1a73e8; color:white; padding:15px 35px; border:none; border-radius:8px; font-weight:bold; font-size:18px; cursor:pointer; width:100%; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                 🚀 Platforma Giriş Yap
             </button>
         </div>
 
         <script>
-            // Tarayıcının ana adres çubuğuna bak
-            var topWin = window.top || window.parent || window;
-            var h = topWin.location.hash;
+            // Tarayıcının en üst penceresine (Adres Çubuğuna) ulaş
+            var topWindow = window.top || window.parent || window;
+            var currentHash = topWindow.location.hash;
 
-            if (h && h.includes("access_token=")) {
-                document.getElementById('bridge').style.display = 'flex';
+            // Eğer URL'de token varsa kartı göster
+            if (currentHash && currentHash.includes("access_token=")) {
+                document.getElementById('bridge-card').style.display = 'flex';
 
-                document.getElementById('goBtn').onclick = function() {
-                    // Manuel yaptığınız işlemin aynısı: # işaretini ? yap ve sayfayı oraya taşı
-                    var targetUrl = topWin.location.origin + topWin.location.pathname + h.replace('#', '?');
-                    topWin.location.href = targetUrl;
+                document.getElementById('forceBtn').onclick = function() {
+                    // Manuel yaptığınız işlemin aynısı: # işaretini ? yap
+                    var newUrl = topWindow.location.origin + topWindow.location.pathname + currentHash.replace('#', '?');
+
+                    // 🎯 KRİTİK: Tarayıcıyı en üst seviyeden (Top Level) zorla yönlendir
+                    topWindow.location.assign(newUrl);
                 };
             }
         </script>
-        """, height=300)
+        """, height=400)
 
 elif st.session_state.page == 'profil':
     show_profile_page()
