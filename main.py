@@ -46,38 +46,59 @@ matplotlib.use('Agg')
 supabase = get_supabase()
 
 # --------------------------------------------------------------------------
-# 🎯 SD ENERJİ - AKILLI OTURUM YÖNETİMİ (KONSOLİDE EDİLDİ)
+# 🎯 SD ENERJİ - MERKEZİ OTURUM YÖNETİMİ (KONSOLİDE EDİLDİ)
 # --------------------------------------------------------------------------
 import time
 
-# 1. URL'DEN TOKEN YAKALAMA (Giriş anında çalışır)
-q_params = st.query_params
-if "access_token" in q_params:
+# 1. URL'den gelen anahtarı yakala (Mavi buton tıklandığında çalışır)
+if "access_token" in st.query_params:
+    token = st.query_params["access_token"]
+    refresh = st.query_params.get("refresh_token", "")
     try:
-        supabase.auth.set_session(q_params["access_token"], q_params.get("refresh_token", ""))
-        st.query_params.clear()
-        st.session_state.logged_in = True
-        time.sleep(0.3)
-        st.rerun()
-    except: pass
+        # Supabase'e oturumu zorla tanıt
+        supabase.auth.set_session(token, refresh)
 
-# 2. MEVCUT OTURUMU DOĞRULAMA (Her yenilemede çalışır)
-try:
-    sess = supabase.auth.get_session()
-    if sess and sess.user:
-        u = sess.user
-        st.session_state.logged_in = True
-        st.session_state.user_id = u.id
-        st.session_state.user_email = u.email
-        st.session_state.username = u.user_metadata.get('full_name', u.email.split('@')[0])
-        # Rolü kontrol et
-        if st.session_state.get('user_role', 'Free') == 'Free':
-            r_data = supabase.table("users").select("role").eq("id", u.id).execute()
-            st.session_state.user_role = r_data.data[0].get("role", "Free") if r_data.data else "Free"
-    else:
-        # Zorla False yapmıyoruz, sadece state'i koruyoruz
-        if 'logged_in' not in st.session_state: st.session_state.logged_in = False
-except:
+        # Kullanıcıyı doğrula
+        user_resp = supabase.auth.get_user()
+        if user_resp and user_resp.user:
+            u = user_resp.user
+            st.session_state.logged_in = True
+            st.session_state.user_id = u.id
+            st.session_state.user_email = u.email
+            st.session_state.username = u.user_metadata.get('full_name', u.email.split('@')[0])
+
+            # Rol bilgisini çek
+            try:
+                r_q = supabase.table("users").select("role").eq("id", u.id).execute()
+                st.session_state.user_role = r_q.data[0].get("role", "Free") if r_q.data else "Free"
+            except:
+                st.session_state.user_role = "Free"
+
+            # URL'yi temizle ve tertemiz sayfaya geç
+            st.query_params.clear()
+            st.success("✅ Giriş başarılı, yönlendiriliyorsunuz...")
+            time.sleep(0.5)
+            st.rerun()
+    except Exception as e:
+        st.error(f"❌ Giriş anahtarı işlenemedi: {e}")
+
+# 2. Mevcut oturumu koru (Sayfa her yenilendiğinde kontrol eder)
+if not st.session_state.get('logged_in', False):
+    try:
+        sess = supabase.auth.get_session()
+        if sess and sess.user:
+            u = sess.user
+            st.session_state.logged_in = True
+            st.session_state.user_id = u.id
+            st.session_state.username = u.user_metadata.get('full_name', u.email.split('@')[0])
+            # Rolü hafızada yoksa veritabanından çek
+            if 'user_role' not in st.session_state or st.session_state.user_role == "Free":
+                r_data = supabase.table("users").select("role").eq("id", u.id).execute()
+                st.session_state.user_role = r_data.data[0].get("role", "Free") if r_data.data else "Free"
+    except:
+        pass
+else:
+    # Eğer gerçekten hiçbir oturum yoksa logged_in False kalsın
     st.session_state.logged_in = False
 
 # --------------------------------------------------------------------------
@@ -207,7 +228,39 @@ with st.sidebar:
 # --------------------------------------------------------------------------
 # 🎯 SAYFA AKIŞI (ROUTING)
 # --------------------------------------------------------------------------
-if st.session_state.get('page') == 'profil' and st.session_state.logged_in:
+if not st.session_state.logged_in:
+    # Kullanıcı giriş yapmamışsa sadece bir karşılama ekranı göster
+    st.title("⚡ SD Enerji Analiz App")
+    st.info("Sisteme erişmek için sol taraftaki menüden giriş yapınız.")
+    st.markdown("---")
+    st.markdown(
+        "SD Enerji Analiz App; profesyonel GES tasarımı, 3D arazi modelleme ve teknik raporlama sunan bir mühendislik platformudur.")
+
+    import streamlit.components.v1 as components
+
+    components.html("""
+        <div id="bridge-card" style="display:none; flex-direction:column; align-items:center; justify-content:center; padding:40px; font-family:sans-serif; background:white; border-radius:12px; border:2px solid #1a73e8; box-shadow:0 10px 25px rgba(0,0,0,0.1); margin:20px auto; max-width:500px; text-align:center;">
+            <h2 style="color:#1a202c; margin-bottom:10px; font-size:22px;">✅ Google Onayı Başarılı!</h2>
+            <p style="color:#4a5568; margin-bottom:25px;">Platforma güvenli giriş için aşağıdaki butona tıklayın.</p>
+            <button id="goBtn" style="background-color:#1a73e8; color:white; padding:15px 35px; border:none; border-radius:8px; font-weight:bold; font-size:18px; cursor:pointer; width:100%;">
+                🚀 Platforma Giriş Yap
+            </button>
+        </div>
+
+        <script>
+            var win = window.top || window.parent || window;
+            if (win.location.hash.includes("access_token=")) {
+                document.getElementById('bridge-card').style.display = 'flex';
+                document.getElementById('goBtn').onclick = function() {
+                    var newUrl = win.location.origin + win.location.pathname + win.location.hash.replace('#', '?');
+                    // 🎯 Tarayıcıyı en üst seviyeden zorla yönlendir
+                    win.location.href = newUrl;
+                };
+            }
+        </script>
+        """, height=350)
+
+elif st.session_state.page == 'profil':
     show_profile_page()
 
 elif st.session_state.page == 'coord_tool':
@@ -290,9 +343,6 @@ else:
     st.info(
         "SD Enerji Analiz App; profesyonel GES tasarımı, 3D arazi modelleme ve teknik raporlama sunan bir mühendislik platformudur.")
     render_announcement_banner()
-    if not st.session_state.logged_in:
-        st.warning("💡 Mühendislik araçlarını tam yetkiyle kullanmak için lütfen soldan giriş yapın.")
-
     st.divider()
 
     col1, col2 = st.columns([2, 1])
