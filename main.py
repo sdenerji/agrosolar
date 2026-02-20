@@ -54,39 +54,35 @@ import time
 import time
 
 # 1. URL'DEKİ ANAHTARI CEBE KOY (Mavi butona tıklandığında burası çalışır)
-query_params = st.query_params
-if "access_token" in query_params:
+q_params = st.query_params
+if "access_token" in q_params:
+    token = q_params["access_token"]
     try:
-        # 1. URL'den gelen o uzun anahtarı al
-        token = query_params["access_token"]
+        # 1. Supabase'e bu token'ın kime ait olduğunu sor
+        user_resp = get_supabase().auth.get_user(token)
 
-        # 2. Supabase'e "Bu anahtar kime ait?" diye sor
-        user_response = get_supabase().auth.get_user(token)
-
-        if user_response and user_response.user:
-            # 3. Kullanıcı geçerliyse hafızaya (Session State) kaydet
-            u = user_response.user
+        if user_resp and user_resp.user:
+            # 2. Kullanıcı geçerliyse hafızaya (Session State) kaydet
+            u = user_resp.user
             st.session_state.logged_in = True
             st.session_state.user_id = u.id
             st.session_state.user_email = u.email
-
-            # Kullanıcı adını al
             st.session_state.username = u.user_metadata.get('full_name', u.email.split('@')[0])
 
-            # 4. Rol bilgisini çek (Pro/Ultra paket yetkileri için)
+            # 3. Rol bilgisini çek (Pro/Ultra paket yetkileri için)
             try:
-                role_data = get_supabase().table("users").select("role").eq("id", u.id).execute()
-                st.session_state.user_role = role_data.data[0].get("role", "Free") if role_data.data else "Free"
+                role_query = get_supabase().table("users").select("role").eq("id", u.id).execute()
+                st.session_state.user_role = role_query.data[0].get("role", "Free") if role_query.data else "Free"
             except:
                 st.session_state.user_role = "Free"
 
-            # 5. URL'yi temizle ve ANALİZ EKRANINA fırlat!
+            # 4. URL'yi temizle ve içeri fırlat!
             st.query_params.clear()
             st.success("✅ Giriş başarılı, yönlendiriliyorsunuz...")
             time.sleep(0.5)
             st.rerun()
     except Exception as e:
-        st.error(f"❌ Giriş anahtarı işlenirken bir hata oluştu: {e}")
+        st.error(f"Giriş anahtarı işlenemedi: {e}")
 
 # 2. MEVCUT OTURUMU KORU (Sayfa her yenilendiğinde burası kontrol eder)
 if not st.session_state.get('logged_in', False):
