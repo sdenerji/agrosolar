@@ -380,7 +380,11 @@ else:
                             auto_locate=(not st.session_state.map_initialized) and (
                                         st.session_state.parsel_geojson is None))
         st.session_state.map_initialized = True
-        if st.toggle("⚡ Şebekeyi Göster") and has_permission(st.session_state.user_role, "tm_proximity"):
+
+        has_grid_perm = has_permission(st.session_state.user_role, "tm_proximity")
+        toggle_label = "⚡ Şebekeyi Göster" if has_grid_perm else "⚡ Şebekeyi Göster (🔒 Ultra Paket)"
+
+        if st.toggle(toggle_label, disabled=not has_grid_perm):
             add_teias_layer(m)
 
         add_parsel_layer(m, st.session_state.parsel_geojson, st.session_state.analysis_results,
@@ -403,19 +407,26 @@ else:
 
         grid_dist, grid_name = get_nearest_grid_distance(st.session_state.lat, st.session_state.lon)
         if grid_dist is not None:
-            # 1000 metreden büyükse KM, küçükse Metre yazdır
-            dist_str = f"{grid_dist / 1000:.2f} km" if grid_dist > 1000 else f"{int(grid_dist)} m"
+            has_grid_perm = has_permission(st.session_state.user_role, "tm_proximity")
+
+            # Yetkisi varsa gerçek verileri göster
+            if has_grid_perm:
+                dist_str = f"{grid_dist / 1000:.2f} km" if grid_dist > 1000 else f"{int(grid_dist)} m"
+                name_str = f"📍 {grid_name}"
+                val_color = "#052c65"  # Lacivert
+            # Yetkisi yoksa gizle ve paketi işaret et
+            else:
+                dist_str = "🔒 Ultra Pakete Özel"
+                name_str = "📍 Harita ve İsim Bilgisi Gizli"
+                val_color = "#6c757d"  # Hissiyatı güçlendiren gri renk
+
             st.markdown(f"""
                     <div style="background-color: #e2f0fb; padding: 10px; border-radius: 5px; border: 1px solid #b6d4fe; margin-bottom: 10px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
                         <div style="font-size: 1rem; color: #084298; font-weight: bold;">⚡ Şebekeye En Kısa Mesafe</div>
-                        <div style="font-weight: bold; font-size: 1.4rem; color: #052c65; margin: 5px 0;">{dist_str}</div>
-                        <div style="font-size: 0.8rem; color: #444;">📍 {grid_name}</div>
+                        <div style="font-weight: bold; font-size: 1.2rem; color: {val_color}; margin: 5px 0;">{dist_str}</div>
+                        <div style="font-size: 0.8rem; color: #444;">{name_str}</div>
                     </div>
                     """, unsafe_allow_html=True)
-
-        st.markdown(
-            f"""<div style="display: flex; gap: 10px; margin-bottom: 10px;"><div style="flex:1; padding: 10px; border-radius: 5px; background-color: {'#d4edda' if s_col == 'green' else '#fff3cd' if s_col == 'orange' else '#f8d7da'}; border: 1px solid {s_col}; text-align: center;"><div style="font-size: 1.2rem;">{s_icon}</div><div style="font-weight: bold; font-size: 0.9rem; color: {s_col};">Eğim: {s_msg}</div></div><div style="flex:1; padding: 10px; border-radius: 5px; background-color: {'#d4edda' if a_col == 'green' else '#fff3cd' if a_col == 'orange' else '#f8d7da'}; border: 1px solid {a_col}; text-align: center;"><div style="font-size: 1.2rem;">{a_icon}</div><div style="font-weight: bold; font-size: 0.9rem; color: {a_col};">Cephe: {baki}</div></div></div>""",
-            unsafe_allow_html=True)
 
         with st.expander("🔌 Tasarım & Yerleşim", expanded=True):
             # 1. FİNANSAL PARAMETRELER
