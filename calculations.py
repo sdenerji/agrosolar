@@ -42,34 +42,48 @@ def smart_fix_coordinates(points):
     """
     Gelen noktaların Enlem/Boylam mı yoksa Metrik mi olduğunu anlar
     ve Türkiye sınırlarına göre (Y, X) sırasını otomatik düzeltir.
-
+    Metin (Pt1 vb.) veya NaN içeren listelerden sadece koordinatları ayıklar.
     """
     if not points: return []
     fixed_points = []
 
     for p in points:
         try:
-            v1, v2 = float(p[0]), float(p[1])
+            # Satırdaki (p) sadece geçerli sayısal verileri topla
+            numeric_vals = []
+            for item in p:
+                # pandas'ın oluşturduğu NaN veya boş değerleri atla
+                if str(item).lower() in ['nan', 'none', 'nat', '']:
+                    continue
+                try:
+                    val = float(item)
+                    numeric_vals.append(val)
+                except (ValueError, TypeError):
+                    pass  # 'Pt1' gibi metinleri geç
 
-            # 🎯 DURUM 1: Coğrafi Koordinat (WGS84) Tespiti
-            if abs(v1) < 100 and abs(v2) < 100:
-                # Türkiye: Lat (35-43), Lon (25-45)
-                # Eğer ilk değer 35-43 arasındaysa bu Enlem'dir, (Lon, Lat) sırasına çevir.
-                if 35 < v1 < 43:
-                    fixed_points.append((v2, v1))
-                else:
-                    fixed_points.append((v1, v2))
+            # En az 2 sayısal değer (X ve Y) bulduysak işlem yap
+            if len(numeric_vals) >= 2:
+                v1, v2 = numeric_vals[0], numeric_vals[1]
 
-            # 🎯 DURUM 2: Metrik Koordinat (ITRF/ED50) Tespiti
-            else:
-                # Türkiye'de Yukarı(X) ~4 milyon, Sağa(Y) ~500 bindir.
-                # Eğer ilk değer 1 milyondan büyükse (v1 > v2), yer değiştir.
-                if v1 > v2:
-                    fixed_points.append((v2, v1))
+                # 🎯 DURUM 1: Coğrafi Koordinat (WGS84) Tespiti
+                if abs(v1) < 100 and abs(v2) < 100:
+                    # Türkiye için enlem 35-43 arasıdır
+                    if 35 < v1 < 43:
+                        fixed_points.append((v2, v1))
+                    else:
+                        fixed_points.append((v1, v2))
+
+                # 🎯 DURUM 2: Metrik Koordinat (ITRF/ED50) Tespiti
                 else:
-                    fixed_points.append((v1, v2))
-        except:
+                    # Türkiye'de Kuzey (Y/Lat) değeri her zaman Doğu (X/Lon) değerinden büyüktür
+                    # Koordinatlar 4 milyona 500 bin bandındadır
+                    if v1 > v2:
+                        fixed_points.append((v2, v1))
+                    else:
+                        fixed_points.append((v1, v2))
+        except Exception as e:
             continue
+
     return fixed_points
 
 
