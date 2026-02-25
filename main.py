@@ -295,25 +295,39 @@ elif st.session_state.page == 'coord_tool':
 
     col_set1, col_set2 = st.columns(2)
     with col_set1:
-        input_sys = st.selectbox("Giriş Sistemi:", ["WGS84 (GPS/Coğrafi)", "ITRF (UTM)", "ED50 (UTM)"],
-                                 index=0 if detected_sys == "WGS84 (GPS/Coğrafi)" else 1,
+        # 🎯 YENİ: 3° TM (Türkiye Haritacı Standardı) seçenekleri eklendi
+        sys_options = [
+            "WGS84 (GPS/Coğrafi)",
+            "ITRF (3° TM / Kadastro)",
+            "ED50 (3° TM / Eski Harita)",
+            "ITRF (6° UTM / Global)",
+            "ED50 (6° UTM / Global)"
+        ]
+        input_sys = st.selectbox("Giriş Sistemi:", sys_options,
+                                 index=0 if detected_sys == "WGS84 (GPS/Coğrafi)" else 2,
                                  disabled=is_detected)
     with col_set2:
-        target_sys = st.selectbox("Hedef Sistem:", ["ITRF (Modern/UTM)", "ED50 (Klasik/UTM)", "WGS84 (Coğrafi)"])
+        # WGS84 hariç tüm sistemleri hedef sistem olarak seçebilme
+        target_sys_options = ["WGS84 (GPS/Coğrafi)"] + [opt for opt in sys_options if "WGS84" not in opt]
+        target_sys = st.selectbox("Hedef Sistem:", target_sys_options)
 
     if st.button("🚀 Dönüşümü Başlat ve Listele", use_container_width=True):
         if not points_to_convert:
             st.error("⚠️ Lütfen önce bir dosya yükleyin!")
         else:
-            in_epsg = 4326 if "WGS84" in input_sys else get_utm_zone_epsg(st.session_state.lon, input_sys.split(' ')[0])
-            out_epsg = 4326 if "WGS84" in target_sys else get_utm_zone_epsg(st.session_state.lon,
-                                                                            target_sys.split(' ')[0])
+            # 🎯 YENİ: Sistem adının tamamını motora gönderiyoruz (3° veya 6° ayrımı yapabilsin diye)
+            in_epsg = 4326 if "WGS84" in input_sys else get_utm_zone_epsg(st.session_state.lon, input_sys)
+            out_epsg = 4326 if "WGS84" in target_sys else get_utm_zone_epsg(st.session_state.lon, target_sys)
+
             res_points = transform_points(points_to_convert, in_epsg, out_epsg)
+
             if res_points:
+                out_name = "Coğrafi" if out_epsg == 4326 else target_sys.split(' ')[0]
                 y_label = "Boylam" if out_epsg == 4326 else "Sağa (Y) Değeri"
                 x_label = "Enlem" if out_epsg == 4326 else "Yukarı (X) Değeri"
+
                 df_res = pd.DataFrame(res_points, columns=[y_label, x_label])
-                st.subheader(f"📍 Dönüşüm Sonuçları (EPSG:{out_epsg})")
+                st.subheader(f"📍 Dönüşüm Sonuçları ({out_name})")
                 st.table(df_res.head(15))
                 st.download_button("📥 Tam Listeyi CSV İndir", df_res.to_csv(index=False), "sd_enerji_donusum.csv",
                                    use_container_width=True)

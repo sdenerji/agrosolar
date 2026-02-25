@@ -11,31 +11,44 @@ from shapely.ops import transform
 
 
 # --- 🌐 KOORDİNAT DÖNÜŞÜM MOTORU ---
-def transform_points(points, from_epsg, to_epsg):
+def transform_points(points, from_sys, to_sys):
     """
     Kullanıcının yüklediği koordinatları bir sistemden diğerine çevirir.
-
+    from_sys ve to_sys EPSG kodu (6°) veya PROJ string (3°) olabilir.
     """
     try:
-        transformer = Transformer.from_crs(f"EPSG:{from_epsg}", f"EPSG:{to_epsg}", always_xy=True)
-        # HATA DÜZELTİLDİ: 'transformed' yerine giriş parametresi olan 'points' üzerinden dönülüyor.
+        # Gelen veri sadece sayıysa (4326 gibi) başına EPSG: ekle, uzun projeksiyon metniyse dokunma
+        src_crs = f"EPSG:{from_sys}" if isinstance(from_sys, int) or str(from_sys).isdigit() else from_sys
+        tgt_crs = f"EPSG:{to_sys}" if isinstance(to_sys, int) or str(to_sys).isdigit() else to_sys
+
+        transformer = Transformer.from_crs(src_crs, tgt_crs, always_xy=True)
         transformed_data = [transformer.transform(p[0], p[1]) for p in points]
         return transformed_data
     except Exception as e:
+        print(f"Dönüşüm Hatası: {e}")
         return None
 
 
-def get_utm_zone_epsg(lon, datum="ITRF"):
+def get_utm_zone_epsg(lon, sys_name="ITRF"):
     """
-    Türkiye için lon değerine göre UTM (6 derece) EPSG kodunu bulur.
-    ITRF (WGS84) -> 32635-32638
-    ED50 -> 23035-23038
+    Türkiye için lon değerine göre UTM (6°) EPSG kodunu veya
+    TM (3°) özel PROJ metnini döndürür.
+    """
+    # 🎯 YENİ: 3 Derecelik Sistem (Haritacı/Kadastro Standardı)
+    if "3°" in sys_name:
+        # Türkiye 3 Derece Dilim Orta Boylamları: 27, 30, 33, 36, 39, 42, 45
+        cm = int(round(lon / 3.0) * 3)
+        if "ED50" in sys_name:
+            return f"+proj=tmerc +lat_0=0 +lon_0={cm} +k=1 +x_0=500000 +y_0=0 +ellps=intl +towgs84=-87,-98,-121,0,0,0,0 +units=m +no_defs"
+        else:
+            return f"+proj=tmerc +lat_0=0 +lon_0={cm} +k=1 +x_0=500000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
 
-    """
-    utm_zone = int(lon / 6) + 31
-    if datum == "ITRF":
+    # Mevcut 6 Derecelik Sistem (Global UTM)
+    else:
+        utm_zone = int(lon / 6) + 31
+        if "ED50" in sys_name:
+            return f"230{utm_zone}"
         return f"326{utm_zone}"
-    return f"230{utm_zone}"
 
 
 def smart_fix_coordinates(points):
