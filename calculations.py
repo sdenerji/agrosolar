@@ -53,8 +53,8 @@ def get_utm_zone_epsg(lon, sys_name="ITRF"):
 
 def smart_fix_coordinates(points):
     """
-    Gelen noktaların Enlem/Boylam mı yoksa Metrik mi olduğunu anlar
-    ve Türkiye sınırlarına göre (Y, X) sırasını otomatik düzeltir.
+    Gelen noktaların Enlem/Boylam mı yoksa Metrik mi olduğunu anlar.
+    Gereksiz yer değiştirmeleri (swap) engelleyerek (X, Y) stabilitesini korur.
     Metin (Pt1 vb.) veya NaN içeren listelerden sadece koordinatları ayıklar.
     """
     if not points: return []
@@ -62,36 +62,39 @@ def smart_fix_coordinates(points):
 
     for p in points:
         try:
-            # Satırdaki (p) sadece geçerli sayısal verileri topla
             numeric_vals = []
             for item in p:
-                # pandas'ın oluşturduğu NaN veya boş değerleri atla
                 if str(item).lower() in ['nan', 'none', 'nat', '']:
                     continue
                 try:
                     val = float(item)
                     numeric_vals.append(val)
                 except (ValueError, TypeError):
-                    pass  # 'Pt1' gibi metinleri geç
+                    pass
 
-            # En az 2 sayısal değer (X ve Y) bulduysak işlem yap
             if len(numeric_vals) >= 2:
                 v1, v2 = numeric_vals[0], numeric_vals[1]
 
                 # 🎯 DURUM 1: Coğrafi Koordinat (WGS84) Tespiti
                 if abs(v1) < 100 and abs(v2) < 100:
-                    # Türkiye için enlem 35-43 arasıdır
-                    if 35 < v1 < 43:
-                        fixed_points.append((v2, v1))
+                    # Eğer v1 veya v2 açıkça Türkiye enlem sınırları (35.5 - 42.5) DIŞINDA ise
+                    # onun kesinlikle Boylam (Lon) olduğunu biliyoruz.
+                    if (v1 < 35.5 or v1 > 42.5) and (35.5 <= v2 <= 42.5):
+                        fixed_points.append((v1, v2))  # v1 Kesin Boylam, v2 Enlem
+                    elif (v2 < 35.5 or v2 > 42.5) and (35.5 <= v1 <= 42.5):
+                        fixed_points.append((v2, v1))  # v2 Kesin Boylam, v1 Enlem
                     else:
+                        # İkisi de 36-42 arasındaysa (Örn: Tokat, Sivas, Kayseri)
+                        # Sistem bizim CSV'den Boylam(X), Enlem(Y) olarak okur.
+                        # Düzeni BOZMA, olduğu gibi kabul et!
                         fixed_points.append((v1, v2))
 
                 # 🎯 DURUM 2: Metrik Koordinat (ITRF/ED50) Tespiti
                 else:
-                    # Türkiye'de Kuzey (Y/Lat) değeri her zaman Doğu (X/Lon) değerinden büyüktür
-                    # Koordinatlar 4 milyona 500 bin bandındadır
+                    # Türkiye'de Kuzey (Y/Yukarı) her zaman Doğu'dan (X/Sağa) büyüktür.
+                    # Yukarı: ~4 Milyon, Sağa: ~500 Bin.
                     if v1 > v2:
-                        fixed_points.append((v2, v1))
+                        fixed_points.append((v2, v1))  # (Sağa, Yukarı) -> (X, Y) Formatına sok
                     else:
                         fixed_points.append((v1, v2))
         except Exception as e:
