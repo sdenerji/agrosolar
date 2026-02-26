@@ -334,7 +334,7 @@ elif st.session_state.page == 'coord_tool':
 
                 # 🎯 KRİTİK GÜNCELLEME: Virgülden sonra 7 haneye zorluyoruz
                 st.subheader(f"📍 Dönüşüm Sonuçları")
-                st.table(df_res.head(15).style.format("{:.7f}"))  # 7 hane cm hassasiyeti sağlar
+                st.table(df_res.head(15).style.format("{:.8f}"))  # 8 hane mm hassasiyeti sağlar
 
                 st.download_button("📥 Tam Listeyi CSV İndir",
                                    df_res.to_csv(index=False),
