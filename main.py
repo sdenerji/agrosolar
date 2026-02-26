@@ -149,9 +149,14 @@ with st.sidebar:
     st.divider()
 
     if st.session_state.logged_in:
-        role_label = ROLE_PERMISSIONS.get(st.session_state.user_role, {}).get("label", st.session_state.user_role)
+        r_data = supabase.table("users").select("role").eq("id", st.session_state.user_id).execute()
+        current_role = r_data.data[0].get("role", "Free") if r_data.data else "Free"
+        st.session_state.user_role = current_role  # Rolü anlık güncelle
+
+        role_label = ROLE_PERMISSIONS.get(current_role, {}).get("label", current_role)
         st.success(f"👤 {st.session_state.username}")
         st.info(f"🛡️ Paket: **{role_label}**")
+
         c1, c2 = st.columns(2)
         if c1.button("🏠 Analiz", use_container_width=True): st.session_state.page = 'analiz'; st.rerun()
         if c2.button("👤 Profil", use_container_width=True): st.session_state.page = 'profil'; st.rerun()

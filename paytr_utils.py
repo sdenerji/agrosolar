@@ -42,8 +42,8 @@ def get_paytr_iframe_token(user_id, email, amount, plan_name):
     # 3. Standart Ayarlar
     user_ip = "91.99.100.41"
     timeout_limit = "300"
-    debug_on = "1"
-    test_mode = "1"  # ⚠️ DİKKAT: GERÇEK SATIŞTA BURAYI "0" YAPIN!
+    debug_on = "0"
+    test_mode = "0"  # ⚠️ DİKKAT: GERÇEK SATIŞTA BURAYI "0" YAPIN!
     no_installment = "0"
     max_installment = "12"
     currency = "TL"
@@ -71,9 +71,9 @@ def get_paytr_iframe_token(user_id, email, amount, plan_name):
         'debug_on': debug_on,
         'no_installment': no_installment,
         'max_installment': max_installment,
-        'user_name': "AgroSolar Kullanicisi",
+        'user_name': st.session_state.get('username', 'SD Enerji Kullanicisi'),
         'user_address': "Turkiye",
-        'user_phone': "905555555555",
+        'user_phone': st.session_state.get('user_phone', '905555555555'),
         'merchant_ok_url': merchant_ok_url,
         'merchant_fail_url': merchant_fail_url,
         'timeout_limit': timeout_limit,
