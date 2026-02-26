@@ -2,6 +2,7 @@
 
 from flask import Flask, request, Response
 import base64, hmac, hashlib, toml, os
+from datetime import datetime, timedelta
 from supabase import create_client, Client
 
 app = Flask(__name__)
@@ -58,19 +59,38 @@ def paytr_callback():
                 found = False
 
                 for u in user_query.data:
-                    # DB'deki ID'nin tirelerini silip gelen clean_id ile kıyaslıyoruz
-                    if str(u['id']).replace("-", "") == clean_user_id:
-                        supabase.table("users").update({"role": new_role}).eq("id", u['id']).execute()
-                        print(f"✅ GÜNCELLEME BAŞARILI: {u['email']} -> {new_role}")
-                        found = True
-                        break
+                    if len(merchant_oid) > 20:
+                        package_tag = merchant_oid[2]
+                        clean_user_id = merchant_oid[3:-10]
+                        new_role = "Pro" if package_tag == "P" else "Ultra"
 
-                if not found:
-                    print(f"❌ Kullanıcı Bulunamadı: {clean_user_id}")
-            else:
-                print("⚠️ OID Formatı Geçersiz veya Çok Kısa")
+                        print(f"Tespit: Paket={new_role}, ID={clean_user_id}")
 
-        return "OK"
+                        # 🎯 YENİ: Bitiş tarihini şu andan itibaren +30 gün olarak hesapla
+                        new_expiry_date = (datetime.now() + timedelta(days=30)).isoformat()
+
+                        user_query = supabase.table("users").select("*").execute()
+                        found = False
+
+                        for u in user_query.data:
+                            if str(u['id']).replace("-", "") == clean_user_id:
+                                # 🎯 YENİ: Hem rolü hem de abonelik bitiş tarihini güncelle
+                                supabase.table("users").update({
+                                    "role": new_role,
+                                    "subscription_end": new_expiry_date
+                                    # Veritabanınızdaki tarih sütununuzun adı farklıysa burayı düzeltin (Örn: expiry_date)
+                                }).eq("id", u['id']).execute()
+
+                                print(f"✅ GÜNCELLEME BAŞARILI: {u['email']} -> {new_role}, Bitiş: {new_expiry_date}")
+                                found = True
+                                break
+
+                        if not found:
+                            print(f"❌ Kullanıcı Bulunamadı: {clean_user_id}")
+                    else:
+                        print("⚠️ OID Formatı Geçersiz veya Çok Kısa")
+
+                    return "OK"
     except Exception as e:
         print(f"❌ Kritik Hata: {e}")
         return Response("Error", status=500)

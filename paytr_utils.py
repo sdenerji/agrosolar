@@ -48,12 +48,18 @@ def get_paytr_iframe_token(user_id, email, amount, plan_name):
     max_installment = "12"
     currency = "TL"
     lang = "tr"
+    is_subscription = "1"
+    subscription_plan_id = "PRO_AYLIK" if plan_name == "Pro" else "ULTRA_AYLIK"
 
     merchant_ok_url = "https://analiz.sdenerji.com/?payment_status=success"
     merchant_fail_url = "https://analiz.sdenerji.com/?payment_status=fail"
 
     # 4. Hash Hesaplama
-    hash_str = f"{merchant_id}{user_ip}{merchant_oid}{email}{payment_amount}{user_basket}{no_installment}{max_installment}{currency}{test_mode}"
+    hash_str = (
+        f"{merchant_id}{user_ip}{merchant_oid}{email}{payment_amount}"
+        f"{user_basket}{no_installment}{max_installment}{currency}"
+        f"{test_mode}{is_subscription}"
+    )
 
     paytr_token = base64.b64encode(
         hmac.new(merchant_key.encode(), hash_str.encode() + merchant_salt.encode(), hashlib.sha256).digest()
@@ -71,14 +77,19 @@ def get_paytr_iframe_token(user_id, email, amount, plan_name):
         'debug_on': debug_on,
         'no_installment': no_installment,
         'max_installment': max_installment,
+
+        # Sembollerden kurtulduk: Gerçek kullanıcı verileri akıyor
         'user_name': st.session_state.get('username', 'SD Enerji Kullanicisi'),
         'user_address': "Turkiye",
         'user_phone': st.session_state.get('user_phone', '905555555555'),
+
         'merchant_ok_url': merchant_ok_url,
         'merchant_fail_url': merchant_fail_url,
         'timeout_limit': timeout_limit,
         'currency': currency,
         'test_mode': test_mode,
+        'is_subscription': is_subscription,  # ✅ EKLENDİ
+        'subscription_plan_id': subscription_plan_id,  # ✅ EKLENDİ
         'lang': lang
     }
 
