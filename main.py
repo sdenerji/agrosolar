@@ -322,14 +322,18 @@ elif st.session_state.page == 'coord_tool':
             res_points = transform_points(points_to_convert, in_epsg, out_epsg)
 
             if res_points:
-                out_name = "Coğrafi" if out_epsg == 4326 else target_sys.split(' ')[0]
                 y_label = "Boylam" if out_epsg == 4326 else "Sağa (Y) Değeri"
                 x_label = "Enlem" if out_epsg == 4326 else "Yukarı (X) Değeri"
 
                 df_res = pd.DataFrame(res_points, columns=[y_label, x_label])
-                st.subheader(f"📍 Dönüşüm Sonuçları ({out_name})")
-                st.table(df_res.head(15))
-                st.download_button("📥 Tam Listeyi CSV İndir", df_res.to_csv(index=False), "sd_enerji_donusum.csv",
+
+                # 🎯 KRİTİK GÜNCELLEME: Virgülden sonra 7 haneye zorluyoruz
+                st.subheader(f"📍 Dönüşüm Sonuçları")
+                st.table(df_res.head(15).style.format("{:.7f}"))  # 7 hane cm hassasiyeti sağlar
+
+                st.download_button("📥 Tam Listeyi CSV İndir",
+                                   df_res.to_csv(index=False),
+                                   "sd_enerji_donusum.csv",
                                    use_container_width=True)
 
     st.divider()
