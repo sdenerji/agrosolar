@@ -198,7 +198,7 @@ with st.sidebar:
                             ✅ Google Doğrulandı
                         </div>
                         <p style="font-family:sans-serif; font-size:11px; color:#666; margin-bottom:10px;">
-                            * Güvenlik duvarını aşmak için yeni sekmede açılacaktır.
+                            * Giriş yapmak için aşağıdaki Platforma Geç butonuna tıklayın.
                         </p>
                         <a id="login-link" href="#" target="_blank" style="display:inline-block; background-color:#1a73e8; color:white; padding:10px; border:none; border-radius:5px; font-weight:bold; cursor:pointer; width:100%; font-family:sans-serif; text-decoration:none; box-sizing:border-box; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                             🚀 Platforma Geç
