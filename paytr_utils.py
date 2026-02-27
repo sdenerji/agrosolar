@@ -99,6 +99,11 @@ def get_paytr_iframe_token(user_id, email, amount, plan_name):
             data=params,
             verify=certifi.where()
         )
+
+        #Eğer PayTR hata verirse (403, 404 vb.) JSON'a hiç girme
+        if result.status_code != 200:
+            return {"status": "error", "reason": f"PayTR Sunucu Hatası: {result.status_code}"}
+
         res = result.json()
 
         if res['status'] == 'success':
