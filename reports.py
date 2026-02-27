@@ -123,7 +123,7 @@ def generate_full_report(d):
     pdf.set_fill_color(245, 245, 245)
     metrics = [
         ["Toplam Kurulu Guc", f"{d['kwp']} kWp", "Yillik Tahmini Uretim", f"{d['kwh']:,} kWh"],
-        ["Yatirim Maliyeti (CAPEX)", f"{d['cost']:,} $", "Geri Donus Suresi (ROI)", f"{d['roi']} Yil"],
+        ["Yatirim Maliyeti (CAPEX)", f"{d.get('cost', 0):,} $", "Geri Donus Suresi (ROI)", f"{d.get('roi', 0)} Yil"],
         ["Ic Verim Orani (IRR)", f"%{d['irr']}", "Net Bugunku Deger (NPV)", f"{d['npv']:,} $"],
         ["LCOE (Birim Maliyet)", f"{round(d['cost'] / (d['kwh'] * 20), 3)} $/kWh", "Karbon Tasarrufu",
          f"{d['co2']} Ton/Yil"]
