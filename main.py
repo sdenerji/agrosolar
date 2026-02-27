@@ -523,10 +523,20 @@ else:
                     "cost": res_cost,
                     "capex": res_cost,
                     "roi": res_roi,
-                    "irr": bankability["irr"],  # ✅ EKLENDİ
-                    "npv": bankability["npv"],  # ✅ EKLENDİ
-                    "co2": bankability["co2"],  # ✅ EKLENDİ (Raporda çıkabilir)
-                    "trees": bankability["trees"]  # ✅ EKLENDİ (Raporda çıkabilir)
+                    "irr": bankability["irr"],
+                    "npv": bankability["npv"],
+                    "co2": bankability["co2"],
+                    "trees": bankability["trees"],
+                    "cash_flow": bankability["cash_flow"],  # 🎯 EKLENDİ (Nakit Akışı Tablosu İçin)
+
+                    "panel_brand": st.session_state.get('selected_panel_brand', 'Bilinmeyen Marka'),
+                    "panel_model": st.session_state.get('selected_panel_model', 'Bilinmeyen Model'),
+                    "inv_model": st.session_state.get('selected_inverter_model', 'Bilinmeyen Inverter'),
+                    # 🎯 İSİM DÜZELTİLDİ
+
+                    "slope": egim,  # 🎯 EKLENDİ (Arazi Eğimi)
+                    "aspect": baki,  # 🎯 EKLENDİ (Arazi Bakısı)
+                    "layout_data": st.session_state.layout_data  # 🎯 EKLENDİ (Panel Adedini Bulması İçin)
                 }
                 if has_permission(st.session_state.user_role, "ai_report"):
                     rep_d["ai_summary"] = generate_smart_report_summary(rep_d)

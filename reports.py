@@ -121,12 +121,17 @@ def generate_full_report(d):
         pdf.ln(5)
 
     pdf.set_fill_color(245, 245, 245)
+
+    # 🎯 SIFIRA BÖLME (ZeroDivision) KALKANI
+    kwh_val = d.get('kwh', 0)
+    cost_val = d.get('cost', 0)
+    lcoe = round(cost_val / (kwh_val * 20), 3) if kwh_val > 0 else 0
+
     metrics = [
-        ["Toplam Kurulu Guc", f"{d['kwp']} kWp", "Yillik Tahmini Uretim", f"{d['kwh']:,} kWh"],
-        ["Yatirim Maliyeti (CAPEX)", f"{d.get('cost', 0):,} $", "Geri Donus Suresi (ROI)", f"{d.get('roi', 0)} Yil"],
+        ["Toplam Kurulu Guc", f"{d.get('kwp', 0)} kWp", "Yillik Tahmini Uretim", f"{kwh_val:,} kWh"],
+        ["Yatirim Maliyeti (CAPEX)", f"{cost_val:,} $", "Geri Donus Suresi (ROI)", f"{d.get('roi', 0)} Yil"],
         ["Ic Verim Orani (IRR)", f"{d.get('irr', 0)} %", "Net Bugunku Deger (NPV)", f"{d.get('npv', 0):,} $"],
-        ["LCOE (Birim Maliyet)", f"{round(d['cost'] / (d['kwh'] * 20), 3)} $/kWh", "Karbon Tasarrufu",
-         f"{d['co2']} Ton/Yil"]
+        ["LCOE (Birim Maliyet)", f"{lcoe} $/kWh", "Karbon Tasarrufu", f"{d.get('co2', 0)} Ton/Yil"]
     ]
 
     for row in metrics:
@@ -148,10 +153,12 @@ def generate_full_report(d):
 
     layout_info = d.get('layout_data', {})
     pdf.set_font('Arial', '', 10)
-    pdf.cell(0, 7, clean_text(f"- Panel Modeli: {d['panel_model']} (Bi-Facial Yuksek Verim)"), ln=True)
+    pdf.cell(0, 7, clean_text(f"- Panel Modeli: {d.get('panel_model', 'Belirtilmedi')} (Bi-Facial Yuksek Verim)"),
+             ln=True)
     pdf.cell(0, 7, clean_text(f"- Toplam Panel Adedi: {layout_info.get('count', 0)} Adet"), ln=True)
-    pdf.cell(0, 7, clean_text(f"- Inverter Modeli: {d['inv_model']}"), ln=True)
-    pdf.cell(0, 7, clean_text(f"- Saha Egimi: %{d['slope']} | Bakisi: {d['aspect']}"), ln=True)
+    pdf.cell(0, 7, clean_text(f"- Inverter Modeli: {d.get('inv_model', 'Belirtilmedi')}"), ln=True)
+    pdf.cell(0, 7, clean_text(f"- Saha Egimi: %{d.get('slope', 0)} | Bakisi: {d.get('aspect', 'Belirtilmedi')}"),
+             ln=True)
 
     # --- HARİTA VE PARSEL BİLGİSİ (DÜZENLENDİ) ---
     map_path = "temp_report_map.png"
@@ -258,7 +265,7 @@ def generate_full_report(d):
 
     pdf.set_font('Arial', '', 8)
     pdf.set_text_color(0, 0, 0)
-    for row in d['cash_flow'][:25]:
+    for row in d.get('cash_flow', [])[:25]:
         pdf.cell(15, 6, str(row['yil']), 1, 0, 'C')
         pdf.cell(35, 6, f"{row['uretim']:,}", 1, 0, 'R')
         pdf.cell(35, 6, f"{row['gelir']:,}", 1, 0, 'R')
