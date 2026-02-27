@@ -514,6 +514,8 @@ else:
             st.metric("Üretim", f"{int(res_prod):,} kWh");
             st.metric("ROI", f"{res_roi} Yıl")
             if st.button("📊 Rapor Oluştur", use_container_width=True):
+                if st.session_state.parsel_geojson:
+                    generate_parsel_plot(st.session_state.parsel_geojson, st.session_state.layout_data)
                 bankability = calculate_bankability_metrics(res_prod, res_cost, st.session_state.elec_price)
                 rep_d = {
                     "kwp": st.session_state.layout_data['capacity_kw'],
