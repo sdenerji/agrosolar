@@ -124,7 +124,7 @@ def generate_full_report(d):
     metrics = [
         ["Toplam Kurulu Guc", f"{d['kwp']} kWp", "Yillik Tahmini Uretim", f"{d['kwh']:,} kWh"],
         ["Yatirim Maliyeti (CAPEX)", f"{d.get('cost', 0):,} $", "Geri Donus Suresi (ROI)", f"{d.get('roi', 0)} Yil"],
-        ["Ic Verim Orani (IRR)", f"%{d['irr']}", "Net Bugunku Deger (NPV)", f"{d['npv']:,} $"],
+        ["Ic Verim Orani (IRR)", f"{d.get('irr', 0)} %", "Net Bugunku Deger (NPV)", f"{d.get('npv', 0):,} $"],
         ["LCOE (Birim Maliyet)", f"{round(d['cost'] / (d['kwh'] * 20), 3)} $/kWh", "Karbon Tasarrufu",
          f"{d['co2']} Ton/Yil"]
     ]

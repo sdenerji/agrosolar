@@ -514,14 +514,19 @@ else:
             st.metric("Üretim", f"{int(res_prod):,} kWh");
             st.metric("ROI", f"{res_roi} Yıl")
             if st.button("📊 Rapor Oluştur", use_container_width=True):
+                bankability = calculate_bankability_metrics(res_prod, res_cost, st.session_state.elec_price)
                 rep_d = {
                     "kwp": st.session_state.layout_data['capacity_kw'],
                     "kwh": res_prod,
                     "username": st.session_state.username,
-                    "gelir": res_pot[1] if res_pot else 0,  # res_pot içinden geliri alıyoruz
+                    "gelir": res_pot[1] if res_pot else 0,
                     "cost": res_cost,
                     "capex": res_cost,
-                    "roi": res_roi
+                    "roi": res_roi,
+                    "irr": bankability["irr"],  # ✅ EKLENDİ
+                    "npv": bankability["npv"],  # ✅ EKLENDİ
+                    "co2": bankability["co2"],  # ✅ EKLENDİ (Raporda çıkabilir)
+                    "trees": bankability["trees"]  # ✅ EKLENDİ (Raporda çıkabilir)
                 }
                 if has_permission(st.session_state.user_role, "ai_report"):
                     rep_d["ai_summary"] = generate_smart_report_summary(rep_d)
