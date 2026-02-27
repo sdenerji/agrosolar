@@ -22,11 +22,25 @@ def create_base_map(lat, lon, tile_config, auto_locate=False):
         strings={"title": "Konumuma Git", "popup": "Konumunuz"}
     ).add_to(m)
 
-    # Merkez Markeri
+    # 🎯 YENİ: Navigasyon linki ve özel HTML Popup tasarımı
+    nav_link = f"https://www.google.com/maps/dir/?api=1&destination={lat},{lon}"
+
+    popup_html = f"""
+    <div style="text-align: center; min-width: 140px; font-family: Arial, sans-serif;">
+        <b style="color: #d35400;">📍 Seçili Konum</b><br>
+        <span style="font-size: 11px; color: gray;">{lat:.5f}, {lon:.5f}</span><br>
+        <hr style="margin: 8px 0; border: 0; border-top: 1px solid #eee;">
+        <a href="{nav_link}" target="_blank" style="display: block; background-color: #1a73e8; color: white; padding: 6px; border-radius: 4px; text-decoration: none; font-weight: bold; font-size: 12px;">
+            🚗 Yol Tarifi Al
+        </a>
+    </div>
+    """
+
+    # Merkez Markeri (HTML Popup eklendi)
     folium.Marker(
         [lat, lon],
         tooltip="Seçili Konum",
-        popup=f"{lat:.5f}, {lon:.5f}",
+        popup=folium.Popup(popup_html, max_width=250),  # 🎯 Düz metin yerine HTML bloğunu çağırdık
         icon=folium.Icon(color="red", icon="map-pin", prefix="fa")
     ).add_to(m)
 
