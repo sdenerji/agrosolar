@@ -10,6 +10,14 @@ import matplotlib.pyplot as plt
 import matplotlib
 from shapely.geometry import shape
 
+import base64
+
+def get_base64_of_bin_file(bin_file):
+    """Yerel imaj dosyasını HTML içinde kullanabilmek için base64'e çevirir."""
+    with open(bin_file, 'rb') as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
 # --- MODÜL IMPORTLARI ---
 from db_base import get_supabase
 from ui_utils import (hide_header_footer, render_google_login,
@@ -144,7 +152,21 @@ def update_from_map(clicked_lat, clicked_lon):
 # GLOBAL SIDEBAR
 # --------------------------------------------------------------------------
 with st.sidebar:
-    if os.path.exists("assets/logo.png"): st.image("assets/logo.png", width="stretch")
+    logo_path = "assets/logo.png"
+    if os.path.exists(logo_path):
+        # Logoyu tıklanabilir yapmak için HTML kullan
+        binary_logo = get_base64_of_bin_file(logo_path)
+        st.markdown(
+            f"""
+                <a href="https://www.sdenerji.com/" target="_blank">
+                    <img src="data:image/png;base64,{binary_logo}" style="width: 100%; cursor: pointer; border-radius: 5px;">
+                </a>
+                """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown("<h2 style='text-align: center;'>SD Enerji</h2>", unsafe_allow_html=True)
+
     st.markdown("<h2 style='text-align: center; margin-top: -15px;'>SD Enerji Analiz App</h2>", unsafe_allow_html=True)
     st.divider()
 
