@@ -375,12 +375,6 @@ elif st.session_state.page == '3d_analiz':
 else:
     # --- ANA ANALİZ EKRANI (DASHBOARD) ---
     st.title("SD Enerji Analiz App")
-    st.markdown("""
-            <div style="background-color: #f8f9fa; padding: 10px; border-radius: 5px; text-align: center; border: 1px solid #dee2e6;">
-                <a href="https://www.sdenerji.com/gizlilik-politikasi/" target="_blank">Gizlilik Politikası</a> | 
-                <a href="https://www.sdenerji.com/kullanim-sartlari/" target="_blank">Kullanım Şartları</a>
-            </div>
-        """, unsafe_allow_html=True)
 
     st.markdown("""
         ### Profesyonel GES Tasarım ve Analiz Platformu
@@ -583,3 +577,15 @@ else:
                 st.markdown(
                     f'<div style="background-color: #f8f9fa; padding: 15px; border-left: 5px solid {col};"><b>📉 Gölge Risk Raporu</b><br>Engel: {m_a} | Kayıp: %{round((1 - l_f) * 100, 1)} | <strong style="color: {col};">{stat}</strong></div>',
                     unsafe_allow_html=True)
+
+st.markdown("""
+    <div style="margin-top: 50px; padding: 20px; border-top: 1px solid #eee; text-align: center; font-size: 0.75rem; color: #888; line-height: 1.6;">
+        <p><b>SD ENERJİ</b> | sd@sdenerji.com | Bağlar Mah. Atatürk Bulv. 156/2 Niksar/Tokat</p>
+        <p>
+            <a href="https://www.sdenerji.com/mesafeli-satis-sozlesmesi/" target="_blank" style="color: #888; text-decoration: none;">Mesafeli Satış Sözleşmesi</a> • 
+            <a href="https://www.sdenerji.com/iptal-iade-kosullari/" target="_blank" style="color: #888; text-decoration: none;">İptal ve İade Koşulları</a> • 
+            <a href="https://www.sdenerji.com/gizlilik-politikasi/" target="_blank" style="color: #888; text-decoration: none;">Gizlilik Politikası</a>
+        </p>
+        <p style="font-size: 0.65rem; color: #bbb; margin-top: 10px;">© 2024 SD Enerji Analiz Platformu. Tüm Hakları Saklıdır.</p>
+    </div>
+""", unsafe_allow_html=True)
