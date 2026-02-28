@@ -583,9 +583,9 @@ st.markdown("""
         <p><b>SD ENERJİ</b> | sd@sdenerji.com | Bağlar Mah. Atatürk Bulv. 156/2 Niksar/Tokat</p>
         <p>
             <a href="https://www.sdenerji.com/mesafeli-satis-sozlesmesi/" target="_blank" style="color: #888; text-decoration: none;">Mesafeli Satış Sözleşmesi</a> • 
-            <a href="https://www.sdenerji.com/iptal-iade-kosullari/" target="_blank" style="color: #888; text-decoration: none;">İptal ve İade Koşulları</a> • 
+            <a href="https://www.sdenerji.com/iptal-ve-iade-kosullari/" target="_blank" style="color: #888; text-decoration: none;">İptal ve İade Koşulları</a> • 
             <a href="https://www.sdenerji.com/gizlilik-politikasi/" target="_blank" style="color: #888; text-decoration: none;">Gizlilik Politikası</a>
         </p>
-        <p style="font-size: 0.65rem; color: #bbb; margin-top: 10px;">© 2024 SD Enerji Analiz Platformu. Tüm Hakları Saklıdır.</p>
+        <p style="font-size: 0.65rem; color: #bbb; margin-top: 10px;">© 2026 SD Enerji Analiz Platformu. Tüm Hakları Saklıdır.</p>
     </div>
 """, unsafe_allow_html=True)
