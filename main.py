@@ -31,7 +31,7 @@ from calculations import (
     calculate_geodesic_area, calculate_bankability_metrics, generate_horizon_plot,
     generate_earnings_graph, generate_parsel_plot, get_shading_metrics,
     evaluate_shading_suitability, interpret_shading, get_suitability_badge,
-    smart_fix_coordinates, get_nearest_grid_distance
+    smart_fix_coordinates, get_nearest_grid_distance, process_coordinate_conversion
 )
 from equipment_db import PANEL_LIBRARY, INVERTER_LIBRARY
 from ges_engine import perform_string_analysis
@@ -342,26 +342,19 @@ elif st.session_state.page == 'coord_tool':
         if not points_to_convert:
             st.error("⚠️ Lütfen önce bir dosya yükleyin!")
         else:
-            # 🎯 YENİ: Sistem adının tamamını motora gönderiyoruz (3° veya 6° ayrımı yapabilsin diye)
-            in_epsg = 4326 if "WGS84" in input_sys else get_utm_zone_epsg(st.session_state.lon, input_sys)
-            out_epsg = 4326 if "WGS84" in target_sys else get_utm_zone_epsg(st.session_state.lon, target_sys)
+            # 🎯 SİHİRLİ SATIR: Tüm hesaplama ve isimlendirme calculations.py'ye devredildi
+            df_res, dynamic_filename = process_coordinate_conversion(
+                points_to_convert, input_sys, target_sys, st.session_state.lon
+            )
 
-            res_points = transform_points(points_to_convert, in_epsg, out_epsg)
+            # Ekranda sadece gösterme ve indirme kaldı
+            st.subheader(f"📍 Dönüşüm Sonuçları")
+            st.table(df_res.head(15).style.format("{:.8f}"))
 
-            if res_points:
-                y_label = "Boylam" if out_epsg == 4326 else "Sağa (Y) Değeri"
-                x_label = "Enlem" if out_epsg == 4326 else "Yukarı (X) Değeri"
-
-                df_res = pd.DataFrame(res_points, columns=[y_label, x_label])
-
-                # 🎯 KRİTİK GÜNCELLEME: Virgülden sonra 7 haneye zorluyoruz
-                st.subheader(f"📍 Dönüşüm Sonuçları")
-                st.table(df_res.head(15).style.format("{:.8f}"))  # 8 hane mm hassasiyeti sağlar
-
-                st.download_button("📥 Tam Listeyi CSV İndir",
-                                   df_res.to_csv(index=False),
-                                   "sd_enerji_donusum.csv",
-                                   use_container_width=True)
+            st.download_button("📥 Tam Listeyi CSV İndir",
+                               df_res.to_csv(index=False),
+                               dynamic_filename,  # calculations'tan gelen taze isim
+                               use_container_width=True)
 
     st.divider()
     if st.button("⬅️ Analiz Sayfasına Dön", use_container_width=True):

@@ -103,6 +103,42 @@ def smart_fix_coordinates(points):
     return fixed_points
 
 
+def process_coordinate_conversion(points, input_sys, target_sys, lon_center):
+    """
+    UI'dan gelen verileri işler:
+    1. Sistemleri EPSG'ye çevirir.
+    2. Matematiksel dönüşümü yapar.
+    3. Dosya adını ve DataFrame'i hazırlar.
+    """
+    from datetime import datetime  # Fonksiyon içinde import ederek temiz tutuyoruz
+
+    # 🎯 Adım 1: EPSG Kodlarını Belirle (Dosyanızdaki get_utm_zone_epsg'yi kullanır)
+    in_epsg = 4326 if "WGS84" in input_sys else get_utm_zone_epsg(lon_center, input_sys)
+    out_epsg = 4326 if "WGS84" in target_sys else get_utm_zone_epsg(lon_center, target_sys)
+
+    # 🎯 Adım 2: Dönüşümü Yap (Dosyanızdaki transform_points'i kullanır)
+    res_points = transform_points(points, in_epsg, out_epsg)
+
+    # 🎯 Adım 3: DataFrame Etiketlerini Belirle
+    y_label = "Boylam" if out_epsg == 4326 else "Sağa (Y) Değeri"
+    x_label = "Enlem" if out_epsg == 4326 else "Yukarı (X) Değeri"
+    df_res = pd.DataFrame(res_points, columns=[y_label, x_label])
+
+    # 🎯 Adım 4: Dinamik Dosya Adını Üret
+    sys_short_names = {
+        "WGS84 (GPS/Coğrafi)": "WGS84",
+        "ITRF (3° TM / Kadastro)": "ITRF3",
+        "ED50 (3° TM / Eski Harita)": "ED503",
+        "ITRF (6° UTM / Global)": "ITRF6",
+        "ED50 (6° UTM / Global)": "ED506"
+    }
+    in_tag = sys_short_names.get(input_sys, "IN")
+    out_tag = sys_short_names.get(target_sys, "OUT")
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+    filename = f"{in_tag}_to_{out_tag}_{timestamp}.csv"
+
+    return df_res, filename
+
 # --- 1. COĞRAFİ VE ALAN ANALİZİ ---
 def calculate_slope_aspect(lat, lon):
     try:
